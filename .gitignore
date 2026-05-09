@@ -1,0 +1,6 @@
+# GSD planning artifacts (local only)
+.planning/
+
+# Obsidian per-user state
+.obsidian/workspace*.json
+.obsidian/cache
