@@ -34,7 +34,7 @@ def parse_wal(text: str) -> list[WalEntry]:
 
         attrs: dict[str, str] = {}
         for attr_m in _ATTR_RE.finditer(attrs_str):
-            attrs[attr_m.group(1)] = attr_m.group(2)
+            attrs[attr_m.group(1)] = html.unescape(attr_m.group(2))
 
         entry = WalEntry(
             id=ULID.from_str(attrs["id"]),

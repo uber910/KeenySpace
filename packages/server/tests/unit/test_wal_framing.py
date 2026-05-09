@@ -91,11 +91,12 @@ def test_ulid_monotonicity() -> None:
 
 
 def test_actor_html_escaped_in_output() -> None:
-    raw = _make_entry(actor="actor<with>&special")
+    actor = "actor<with>&special"
+    raw = _make_entry(actor=actor)
     text = raw.decode()
-    assert "actor<with>&special" not in text
+    assert actor not in text
     entries = parse_wal(text)
-    assert "actor" in entries[0].actor
+    assert entries[0].actor == actor
 
 
 def test_format_entry_attribute_order() -> None:

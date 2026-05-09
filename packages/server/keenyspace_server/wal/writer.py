@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import fcntl
 import hashlib
-import html
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -61,11 +60,10 @@ async def append_log(
         entry_id = ULID.from_datetime(ts)
         content_hash = "sha256:" + hashlib.sha256(content.encode()).hexdigest()
 
-        escaped_actor = html.escape(actor, quote=True)
         payload = format_entry(
             entry_id=entry_id,
             ts=ts,
-            actor=escaped_actor,
+            actor=actor,
             source=source,
             client_version=client_version,
             content_hash=content_hash,
