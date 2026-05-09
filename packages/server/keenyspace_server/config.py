@@ -22,6 +22,7 @@ class DBSettings(BaseModel):
 
 class FSSettings(BaseModel):
     root: Path = Path("/var/lib/keenyspace")
+    blueprints_dir: Path | None = None
 
 
 class WALSettings(BaseModel):

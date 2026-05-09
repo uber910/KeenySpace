@@ -32,7 +32,10 @@ def build_app() -> FastAPI:
     @asynccontextmanager
     async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
         async with engine_lifespan(app):
-            server_blueprints_dir = Path(__file__).parent.parent.parent.parent / "blueprints"
+            if settings.fs.blueprints_dir is not None:
+                server_blueprints_dir = settings.fs.blueprints_dir
+            else:
+                server_blueprints_dir = Path(__file__).parent.parent.parent.parent / "blueprints"
             ensure_fs_root_layout(settings.fs.root, server_blueprints_dir)
             yield
 
