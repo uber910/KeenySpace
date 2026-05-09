@@ -1,13 +1,69 @@
 from __future__ import annotations
 
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import AsyncIterator
 
-from fastapi import FastAPI
+import uvicorn
+from fastapi import FastAPI, HTTPException
 from fastmcp.utilities.lifespan import combine_lifespans
+from starlette.middleware.authentication import AuthenticationMiddleware
 
 from .api import health
-from .mcp.server import build_mcp_skeleton
+from .api import logs, pages, workspaces
+from .auth.dev_shim import DevTokenAuthBackend
+from .auth.middleware import on_auth_error
+from .config import get_settings
+from .db.session import engine_lifespan
+from .fs.bootstrap import ensure_fs_root_layout
+from .mcp.server import build_mcp, build_mcp_skeleton
+from .observability.logging import configure_logging
+from .observability.metrics import build_instrumentator
+from .wal.locks import WorkspaceLockRegistry
+
+
+def build_app() -> FastAPI:
+    settings = get_settings()
+    configure_logging(settings.server.log_level)
+
+    mcp = build_mcp()
+    mcp_app = mcp.http_app(path="/")
+
+    @asynccontextmanager
+    async def app_lifespan(app: FastAPI) -> AsyncIterator[None]:
+        async with engine_lifespan(app):
+            server_blueprints_dir = Path(__file__).parent.parent.parent.parent / "blueprints"
+            ensure_fs_root_layout(settings.fs.root, server_blueprints_dir)
+            yield
+
+    app = FastAPI(
+        title="KeenySpace",
+        lifespan=combine_lifespans(app_lifespan, mcp_app.lifespan),
+    )
+
+    app.state.settings = settings
+    app.state.wal_locks = WorkspaceLockRegistry()
+
+    app.add_middleware(
+        AuthenticationMiddleware,
+        backend=DevTokenAuthBackend(settings.auth.dev_token),
+        on_error=on_auth_error,
+    )
+
+    app.include_router(health.router)
+    app.include_router(workspaces.router, prefix="/v1/api/workspaces")
+    app.include_router(pages.router, prefix="/v1/api/workspaces")
+    app.include_router(logs.router, prefix="/v1/api/workspaces")
+
+    @app.get("/v1/admin/api-keys")
+    async def admin_stub() -> None:
+        raise HTTPException(status_code=501, detail="admin api-keys is Phase 3")
+
+    app.mount("/v1/mcp", mcp_app)
+
+    build_instrumentator().instrument(app).expose(app)
+
+    return app
 
 
 def build_app_skeleton() -> FastAPI:
@@ -27,6 +83,17 @@ def build_app_skeleton() -> FastAPI:
     app.mount("/v1/mcp", mcp_app)
 
     return app
+
+
+def cli_main() -> None:
+    settings = get_settings()
+    uvicorn.run(
+        "keenyspace_server.main:app",
+        host=settings.server.host,
+        port=settings.server.port,
+        workers=1,
+        log_config=None,
+    )
 
 
 app = build_app_skeleton()
