@@ -12,9 +12,13 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import structlog
+
 from keenyspace_server.db.models import Workspace
 from keenyspace_server.db.session import get_db
 from keenyspace_server.fs.blueprint import clone_default_blueprint
+
+logger = structlog.get_logger(__name__)
 
 router = APIRouter()
 
@@ -83,9 +87,14 @@ async def create_workspace(
         await session.commit()
     except IntegrityError as exc:
         await session.rollback()
-        import contextlib
-        with contextlib.suppress(Exception):
+        try:
             shutil.rmtree(ws_dir, ignore_errors=True)
+        except Exception as cleanup_exc:
+            logger.error(
+                "failed to clean up orphaned workspace dir",
+                path=str(ws_dir),
+                exc=cleanup_exc,
+            )
         raise HTTPException(
             status_code=409,
             detail=f"workspace with slug {body.slug!r} already exists",
