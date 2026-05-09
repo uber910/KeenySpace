@@ -1,0 +1,10 @@
+FROM python:3.14-slim-bookworm
+
+RUN apt-get update && apt-get install -y --no-install-recommends strace && rm -rf /var/lib/apt/lists/*
+
+RUN pip install uv
+
+WORKDIR /app
+COPY . .
+
+RUN uv sync --frozen --extra dev --package keenyspace-server
