@@ -115,7 +115,7 @@ async def test_negative_without_mcp_lifespan_second_call_fails() -> None:
         await server.serve()
 
     server_task = asyncio.create_task(run_server())
-    await asyncio.sleep(1.5)
+    await _wait_for_server(f"http://127.0.0.1:{port}/healthz")
 
     try:
         transport = StreamableHttpTransport(f"http://127.0.0.1:{port}/v1/mcp/")
