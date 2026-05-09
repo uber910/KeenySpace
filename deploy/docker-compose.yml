@@ -1,0 +1,39 @@
+services:
+  keenyspace:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      KEENYSPACE_DB__URL: postgresql+asyncpg://keenyspace:devpw@postgres/keenyspace
+      KEENYSPACE_FS__ROOT: /var/lib/keenyspace
+      KEENYSPACE_AUTH__DEV_TOKEN: devtoken-replace-me
+      KEENYSPACE_AUTO_MIGRATE: "true"
+    volumes:
+      - keenyspace-fs:/var/lib/keenyspace
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: keenyspace
+      POSTGRES_USER: keenyspace
+      POSTGRES_PASSWORD: devpw
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U keenyspace -d keenyspace"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+volumes:
+  keenyspace-fs:
+  postgres-data:
