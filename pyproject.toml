@@ -1,0 +1,9 @@
+[tool.uv.workspace]
+members = [
+    "packages/server",
+    "packages/client",
+    "packages/shared",
+]
+
+[tool.uv.sources]
+keenyspace-shared = { workspace = true }

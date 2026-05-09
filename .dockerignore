@@ -1,0 +1,14 @@
+.planning/
+.git/
+__pycache__/
+.venv/
+*.pyc
+tests/
+concepts/
+plans/
+.obsidian/
+.idea/
+*.egg-info/
+dist/
+.mypy_cache/
+.ruff_cache/
