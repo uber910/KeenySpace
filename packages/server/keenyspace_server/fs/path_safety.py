@@ -49,6 +49,13 @@ def open_workspace_page(ws_root: Path, page_path: str) -> tuple[int, Path]:
             f"Path {page_path!r} resolves outside workspace root"
         )
 
+    # O_NOFOLLOW guards only the final path component against symlinks.
+    # resolve() above follows intermediate symlinks — a TOCTOU window exists
+    # if an attacker can replace an intermediate directory component between
+    # resolve() and os.open(). The practical risk is low: workspace directories
+    # are not writable by untrusted users in v1 (single-org, single-process).
+    # Full mitigation would require openat(2) with O_PATH|O_NOFOLLOW on each
+    # component — deferred to v1.5 when multi-tenant isolation is added.
     try:
         fd = os.open(target, os.O_RDONLY | os.O_NOFOLLOW)
     except OSError as exc:
