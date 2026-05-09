@@ -1,0 +1,4 @@
+name: default
+version: v0.1
+description: KeenySpace default blueprint — Obsidian-compatible skeleton vault.
+schema_version: 1
