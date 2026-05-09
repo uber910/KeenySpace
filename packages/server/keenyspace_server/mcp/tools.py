@@ -11,7 +11,7 @@ from keenyspace_shared.mcp_contracts import AppendLogResponse, ReadPageResponse
 from sqlalchemy import select
 
 from keenyspace_server.db.models import Workspace
-from keenyspace_server.db.session import get_db
+from keenyspace_server.db.session import get_db_session
 from keenyspace_server.fs.path_safety import UnsafePath, open_workspace_page
 from keenyspace_server.mcp.auth_bridge import current_user_from_mcp
 from keenyspace_server.observability.metrics import MCP_TOOL_CALL_DURATION
@@ -30,12 +30,11 @@ async def read_page(workspace: str, path: str) -> ReadPageResponse:
         req = __import__("fastmcp.server.dependencies", fromlist=["get_http_request"]).get_http_request()
         app = req.app
 
-        async for session in get_db():
+        async with get_db_session() as session:
             result = await session.execute(
                 select(Workspace).where(Workspace.slug == workspace)
             )
             ws = result.scalar_one_or_none()
-            break
 
         if ws is None:
             raise ToolError(f"workspace {workspace!r} not found")
@@ -74,12 +73,11 @@ async def append_log(
         req = __import__("fastmcp.server.dependencies", fromlist=["get_http_request"]).get_http_request()
         app = req.app
 
-        async for session in get_db():
+        async with get_db_session() as session:
             result = await session.execute(
                 select(Workspace).where(Workspace.slug == workspace)
             )
             ws = result.scalar_one_or_none()
-            break
 
         if ws is None:
             raise ToolError(f"workspace {workspace!r} not found")

@@ -46,3 +46,11 @@ async def get_db() -> AsyncIterator[AsyncSession]:
         raise RuntimeError("engine_lifespan didn't run; combine_lifespans missing?")
     async with _session_factory() as session:
         yield session
+
+
+@asynccontextmanager
+async def get_db_session() -> AsyncIterator[AsyncSession]:
+    if _session_factory is None:
+        raise RuntimeError("engine_lifespan didn't run; combine_lifespans missing?")
+    async with _session_factory() as session:
+        yield session
