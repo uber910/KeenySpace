@@ -3,9 +3,8 @@ from __future__ import annotations
 import re
 import shutil
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -39,7 +38,7 @@ class WorkspaceResponse(BaseModel):
 async def create_workspace(
     body: WorkspaceCreateRequest,
     request: Request,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> WorkspaceResponse:
     if not _SLUG_RE.match(body.slug):
         raise HTTPException(
@@ -69,7 +68,7 @@ async def create_workspace(
         display_name=body.slug,
     )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     ws = Workspace(
         uuid=ws_uuid,
         slug=body.slug,
@@ -82,16 +81,15 @@ async def create_workspace(
     session.add(ws)
     try:
         await session.commit()
-    except IntegrityError:
+    except IntegrityError as exc:
         await session.rollback()
-        try:
+        import contextlib
+        with contextlib.suppress(Exception):
             shutil.rmtree(ws_dir, ignore_errors=True)
-        except Exception:
-            pass
         raise HTTPException(
             status_code=409,
             detail=f"workspace with slug {body.slug!r} already exists",
-        )
+        ) from exc
 
     return WorkspaceResponse(
         uuid=str(ws_uuid),

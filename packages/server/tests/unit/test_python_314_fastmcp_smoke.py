@@ -1,10 +1,9 @@
-import pytest
 
 
 def test_fastmcp_imports() -> None:
     from fastmcp import FastMCP
-    from fastmcp.utilities.lifespan import combine_lifespans
     from fastmcp.server.dependencies import get_http_request
+    from fastmcp.utilities.lifespan import combine_lifespans
 
     assert FastMCP is not None
     assert combine_lifespans is not None

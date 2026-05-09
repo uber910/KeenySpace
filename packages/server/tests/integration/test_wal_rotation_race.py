@@ -6,19 +6,18 @@ from __future__ import annotations
 
 import asyncio
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from keenyspace_server.wal.locks import WorkspaceLockRegistry
 from keenyspace_server.wal.parser import parse_wal
 
 
 class FakeDatetime(datetime):
-    _sequence: list[datetime] = []
-    _idx: int = 0
+    _sequence: list[datetime]
+    _idx: int
 
     @classmethod
     def now(cls, tz=None):
@@ -26,19 +25,18 @@ class FakeDatetime(datetime):
             val = cls._sequence[cls._idx]
             cls._idx += 1
             return val
-        return datetime.now(tz or timezone.utc)
+        return datetime.now(tz or UTC)
 
 
 def _build_sequence(n_before: int, n_after: int) -> list[datetime]:
-    midnight = datetime(2026, 5, 10, 0, 0, 0, 0, timezone.utc)
     seq = []
     for i in range(n_before):
         offset_us = (n_before - i) * 10000
-        dt = datetime(2026, 5, 9, 23, 59, 59, 1000000 - offset_us, timezone.utc)
+        dt = datetime(2026, 5, 9, 23, 59, 59, 1000000 - offset_us, UTC)
         seq.append(dt)
     for i in range(n_after):
         offset_us = i * 10000
-        dt = datetime(2026, 5, 10, 0, 0, 0, offset_us, timezone.utc)
+        dt = datetime(2026, 5, 10, 0, 0, 0, offset_us, UTC)
         seq.append(dt)
     return seq
 
@@ -58,10 +56,10 @@ async def test_wal_rotation_race(tmp_path: Path):
     sequence = _build_sequence(n_before, n_after)
 
     class _MockSettings:
-        class wal:
+        class wal:  # noqa: N801
             max_entry_bytes = 256 * 1024
 
-        class auth:
+        class auth:  # noqa: N801
             multi_worker = False
 
     call_count = [0]
@@ -73,11 +71,9 @@ async def test_wal_rotation_race(tmp_path: Path):
         call_count[0] += 1
         if idx < len(sequence):
             return sequence[idx]
-        return original_now(tz or timezone.utc)
+        return original_now(tz or UTC)
 
     import keenyspace_server.wal.writer as writer_module
-
-    original_datetime = writer_module.datetime
 
     class _PatchedDatetime:
         @staticmethod

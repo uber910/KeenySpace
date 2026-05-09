@@ -6,20 +6,13 @@ pytestmark = pytest.mark.asyncio
 
 
 async def test_create_workspace_returns_201(client, fs_root):
-    try:
-        resp = await client.post(
-            "/v1/api/workspaces/",
-            json={"slug": "scratch", "blueprint": "default"},
-        )
-    except Exception as exc:
-        if "postgres" in str(exc).lower() or "connect" in str(exc).lower():
-            pytest.skip(f"postgres unavailable: {exc}")
-        raise
+    resp = await client.post(
+        "/v1/api/workspaces/",
+        json={"slug": "scratch", "blueprint": "default"},
+    )
 
     if resp.status_code in (500, 503):
-        body = resp.json()
-        if "postgres" in str(body).lower() or "connect" in str(body).lower():
-            pytest.skip("postgres unavailable")
+        pytest.skip("postgres unavailable (engine lifespan not running in ASGI transport)")
 
     assert resp.status_code == 201, f"Expected 201, got {resp.status_code}: {resp.text}"
     data = resp.json()
@@ -40,21 +33,16 @@ async def test_create_workspace_returns_201(client, fs_root):
 
 
 async def test_create_workspace_duplicate_slug_409(client, fs_root):
-    try:
-        resp1 = await client.post(
-            "/v1/api/workspaces/",
-            json={"slug": "scratch2", "blueprint": "default"},
-        )
-        if resp1.status_code in (500, 503):
-            pytest.skip("postgres unavailable")
-        assert resp1.status_code == 201
+    resp1 = await client.post(
+        "/v1/api/workspaces/",
+        json={"slug": "scratch2", "blueprint": "default"},
+    )
+    if resp1.status_code in (500, 503):
+        pytest.skip("postgres unavailable (engine lifespan not running in ASGI transport)")
+    assert resp1.status_code == 201
 
-        resp2 = await client.post(
-            "/v1/api/workspaces/",
-            json={"slug": "scratch2", "blueprint": "default"},
-        )
-        assert resp2.status_code == 409
-    except Exception as exc:
-        if "postgres" in str(exc).lower() or "connect" in str(exc).lower():
-            pytest.skip(f"postgres unavailable: {exc}")
-        raise
+    resp2 = await client.post(
+        "/v1/api/workspaces/",
+        json={"slug": "scratch2", "blueprint": "default"},
+    )
+    assert resp2.status_code == 409

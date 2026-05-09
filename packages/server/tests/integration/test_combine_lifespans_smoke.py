@@ -81,12 +81,11 @@ async def test_negative_without_mcp_lifespan_second_call_fails() -> None:
     Proves the test is load-bearing: if mcp_app.lifespan is not in combine_lifespans,
     the second MCP call raises an error.
     """
+    from collections.abc import AsyncIterator
     from contextlib import asynccontextmanager
-    from typing import AsyncIterator
 
     from fastapi import FastAPI
     from fastmcp.utilities.lifespan import combine_lifespans
-
     from keenyspace_server.mcp.server import build_mcp_skeleton
 
     mcp = build_mcp_skeleton()

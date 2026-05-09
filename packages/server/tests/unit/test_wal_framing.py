@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-import pytest
-from ulid import ULID
+from datetime import UTC, datetime
 
 from keenyspace_server.wal.framing import format_entry
 from keenyspace_server.wal.parser import parse_wal
+from ulid import ULID
 
 
 def _make_entry(
@@ -16,7 +14,7 @@ def _make_entry(
     client_version: str | None = None,
     parent_id: ULID | None = None,
 ) -> bytes:
-    ts = datetime(2026, 5, 9, 12, 0, 0, tzinfo=timezone.utc)
+    ts = datetime(2026, 5, 9, 12, 0, 0, tzinfo=UTC)
     entry_id = ULID.from_datetime(ts)
     return format_entry(
         entry_id=entry_id,
@@ -86,7 +84,7 @@ def test_empty_wal_returns_empty_list() -> None:
 
 
 def test_ulid_monotonicity() -> None:
-    ts = datetime(2026, 5, 9, 12, 0, 0, tzinfo=timezone.utc)
+    ts = datetime(2026, 5, 9, 12, 0, 0, tzinfo=UTC)
     u1 = ULID.from_datetime(ts)
     u2 = ULID.from_datetime(ts)
     assert str(u1)[:10] == str(u2)[:10]

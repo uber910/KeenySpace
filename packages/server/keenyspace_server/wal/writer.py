@@ -5,7 +5,7 @@ import fcntl
 import hashlib
 import html
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -15,8 +15,11 @@ from .framing import format_entry
 from .locks import WorkspaceLockRegistry
 
 
-class PayloadTooLarge(ValueError):
+class PayloadTooLargeError(ValueError):
     pass
+
+
+PayloadTooLarge = PayloadTooLargeError
 
 
 def _blocking_append(wal_file: Path, payload: bytes, multi_worker: bool) -> None:
@@ -43,12 +46,8 @@ async def append_log(
     settings: object,
     locks: WorkspaceLockRegistry,
 ) -> ULID:
-    from keenyspace_server.config import Settings as _Settings
-
-    s = settings if isinstance(settings, _Settings) else settings  # type: ignore[assignment]
-
-    max_bytes: int = getattr(getattr(s, "wal", s), "max_entry_bytes", 256 * 1024)
-    multi_worker: bool = getattr(getattr(s, "auth", s), "multi_worker", False)
+    max_bytes: int = getattr(getattr(settings, "wal", settings), "max_entry_bytes", 256 * 1024)
+    multi_worker: bool = getattr(getattr(settings, "auth", settings), "multi_worker", False)
 
     if len(content.encode()) > max_bytes:
         raise PayloadTooLarge(
@@ -57,8 +56,8 @@ async def append_log(
 
     ws_lock = await locks.for_workspace(ws_uuid)
     async with ws_lock:
-        wal_path = ws_root / "logs" / f"{datetime.now(timezone.utc).date().isoformat()}.md"
-        ts = datetime.now(timezone.utc)
+        wal_path = ws_root / "logs" / f"{datetime.now(UTC).date().isoformat()}.md"
+        ts = datetime.now(UTC)
         entry_id = ULID.from_datetime(ts)
         content_hash = "sha256:" + hashlib.sha256(content.encode()).hexdigest()
 
@@ -77,7 +76,7 @@ async def append_log(
             _blocking_append, wal_path, payload, multi_worker
         )
 
-    from keenyspace_server.observability.metrics import WAL_APPENDS_TOTAL, WAL_APPEND_LATENCY
+    from keenyspace_server.observability.metrics import WAL_APPENDS_TOTAL
     WAL_APPENDS_TOTAL.labels(workspace=str(ws_uuid), source=source).inc()
 
     return entry_id

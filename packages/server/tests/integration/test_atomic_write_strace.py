@@ -7,7 +7,6 @@ from __future__ import annotations
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -22,7 +21,7 @@ def test_atomic_write_strace_syscall_sequence(tmp_path: Path):
     dest = tmp_path / "page.md"
     strace_log = tmp_path / "strace.log"
 
-    result = subprocess.run(
+    subprocess.run(
         [
             "strace",
             "-e", "trace=openat,write,fsync,rename,renameat,close",
@@ -34,6 +33,7 @@ def test_atomic_write_strace_syscall_sequence(tmp_path: Path):
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
 
     strace_text = strace_log.read_text()

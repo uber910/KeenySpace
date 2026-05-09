@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import io
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 import yaml
 from fastmcp.exceptions import ToolError
+from keenyspace_shared.mcp_contracts import AppendLogResponse, ReadPageResponse
 from sqlalchemy import select
 
 from keenyspace_server.db.models import Workspace
@@ -15,7 +16,6 @@ from keenyspace_server.fs.path_safety import UnsafePath, open_workspace_page
 from keenyspace_server.mcp.auth_bridge import current_user_from_mcp
 from keenyspace_server.observability.metrics import MCP_TOOL_CALL_DURATION
 from keenyspace_server.wal import writer as wal_writer
-from keenyspace_shared.mcp_contracts import AppendLogResponse, ReadPageResponse
 
 
 async def ping(message: str) -> str:
@@ -47,16 +47,15 @@ async def read_page(workspace: str, path: str) -> ReadPageResponse:
             fd, resolved = open_workspace_page(ws_root, path)
         except UnsafePath as exc:
             raise ToolError(f"400 Bad Request: {exc}") from exc
-        except FileNotFoundError:
-            raise ToolError(f"page {path!r} not found in workspace {workspace!r}")
+        except FileNotFoundError as exc:
+            raise ToolError(f"page {path!r} not found in workspace {workspace!r}") from exc
 
+        import contextlib
         try:
             raw_content = io.FileIO(fd).read()
         finally:
-            try:
+            with contextlib.suppress(OSError):
                 os.close(fd)
-            except OSError:
-                pass
 
         content_str = raw_content.decode("utf-8", errors="replace")
         frontmatter, body = _split_frontmatter(content_str)
@@ -104,13 +103,13 @@ async def append_log(
         except Exception:
             pass
 
+        import contextlib
+
         from ulid import ULID as _ULID
         parent_ulid: _ULID | None = None
         if parent_id is not None:
-            try:
+            with contextlib.suppress(Exception):
                 parent_ulid = _ULID.from_str(parent_id)
-            except Exception:
-                pass
 
         entry_id = await wal_writer.append_log(
             ws_uuid=ws.uuid,
@@ -126,7 +125,7 @@ async def append_log(
 
         return AppendLogResponse(
             entry_id=str(entry_id),
-            ts=datetime.now(timezone.utc),
+            ts=datetime.now(UTC),
         )
 
 

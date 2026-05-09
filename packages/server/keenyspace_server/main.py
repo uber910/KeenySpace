@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+import os
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import AsyncIterator
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
 from fastmcp.utilities.lifespan import combine_lifespans
 from starlette.middleware.authentication import AuthenticationMiddleware
 
-from .api import health
-from .api import logs, pages, workspaces
+from .api import health, logs, pages, workspaces
 from .auth.dev_shim import DevTokenAuthBackend
 from .auth.middleware import on_auth_error
 from .config import get_settings
@@ -96,4 +96,4 @@ def cli_main() -> None:
     )
 
 
-app = build_app_skeleton()
+app = build_app() if os.environ.get("KEENYSPACE_DB__URL") else build_app_skeleton()

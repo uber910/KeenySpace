@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from keenyspace_server.fs.atomic import write_atomic
 
 
@@ -45,8 +44,6 @@ def test_overwrites_existing_file(tmp_path: Path) -> None:
 
 def test_no_tmp_remains_on_exception(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     import os
-
-    original_replace = os.replace
 
     def failing_replace(src: str, dst: str) -> None:
         raise OSError("simulated failure")

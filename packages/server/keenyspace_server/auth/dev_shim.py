@@ -16,10 +16,6 @@ class DevTokenAuthBackend(AuthenticationBackend):
     def __init__(self, dev_token: str | None = None) -> None:
         self._dev_token = dev_token
 
-    @property
-    def PUBLIC_PREFIXES(self) -> tuple[str, ...]:
-        return PUBLIC_PREFIXES
-
     async def authenticate(
         self, conn: HTTPConnection
     ) -> tuple[AuthCredentials, User] | None:

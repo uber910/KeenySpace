@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import os
 import secrets
 from pathlib import Path
@@ -18,10 +19,8 @@ def write_atomic(dest: Path, data: bytes, *, mode: int = 0o644) -> None:
             os.close(fd)
         os.replace(tmp, dest)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             tmp.unlink(missing_ok=True)
-        except OSError:
-            pass
         raise
 
     dir_fd = os.open(dest.parent, os.O_DIRECTORY | os.O_RDONLY)

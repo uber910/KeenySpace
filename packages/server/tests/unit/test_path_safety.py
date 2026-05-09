@@ -4,7 +4,6 @@ import os
 from pathlib import Path
 
 import pytest
-
 from keenyspace_server.fs.path_safety import UnsafePath, open_workspace_page, validate_relative_path
 
 
@@ -50,7 +49,7 @@ def test_open_workspace_page_valid(tmp_path: Path) -> None:
     ws_root.mkdir()
     (ws_root / "page.md").write_text("# Hello")
 
-    fd, resolved = open_workspace_page(ws_root, "page")
+    fd, _resolved = open_workspace_page(ws_root, "page")
     try:
         content = os.read(fd, 1024)
         assert b"# Hello" in content

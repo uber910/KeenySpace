@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import shutil
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -56,7 +56,7 @@ def _write_workspace_config(
         "slug": slug,
         "display_name": display_name,
         "blueprint": blueprint_ref,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "schema_version": 1,
     }
     config_path = config_dir / "config.yaml"

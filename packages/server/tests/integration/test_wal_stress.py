@@ -1,5 +1,5 @@
 """
-4-process WAL stress test: 4 uvicorn processes × 1000 appends = 4000 unique-ULID entries.
+4-process WAL stress test: 4 uvicorn processes x 1000 appends = 4000 unique-ULID entries.
 Validates per-workspace asyncio.Lock + flock scaffold (Pitfall #5/#6 mitigation).
 """
 from __future__ import annotations
@@ -10,15 +10,11 @@ import socket
 import subprocess
 import sys
 import time
-import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 import pytest
-from fastmcp import Client
-from fastmcp.client.transports import StreamableHttpTransport
-
 from keenyspace_server.wal.parser import parse_wal
 
 
@@ -120,7 +116,6 @@ async def test_wal_stress(tmp_path: Path, multi_worker: bool, expect_all: bool):
                 return
             ws_uuid_str = resp.json().get("uuid")
             if ws_uuid_str is None:
-                result = await client.get("/v1/api/workspaces/scratch")
                 pytest.skip("workspace get not implemented; test needs uuid")
                 return
 
@@ -129,7 +124,7 @@ async def test_wal_stress(tmp_path: Path, multi_worker: bool, expect_all: bool):
             for i, port in enumerate(ports)
         ])
 
-        today = datetime.now(timezone.utc).date().isoformat()
+        today = datetime.now(UTC).date().isoformat()
         wal_path = fs_root / "workspaces" / ws_uuid_str / "logs" / f"{today}.md"
 
         if not wal_path.exists():

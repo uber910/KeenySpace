@@ -4,8 +4,11 @@ import os
 from pathlib import Path
 
 
-class UnsafePath(ValueError):
+class UnsafePathError(ValueError):
     pass
+
+
+UnsafePath = UnsafePathError
 
 
 def validate_relative_path(page_path: str) -> str:

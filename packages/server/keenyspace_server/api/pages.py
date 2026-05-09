@@ -6,13 +6,13 @@ from typing import Any
 
 import yaml
 from fastapi import APIRouter, Depends, HTTPException, Request
+from keenyspace_shared.mcp_contracts import ReadPageResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from keenyspace_server.db.models import Workspace
 from keenyspace_server.db.session import get_db
 from keenyspace_server.fs.path_safety import UnsafePath, open_workspace_page
-from keenyspace_shared.mcp_contracts import ReadPageResponse
 
 router = APIRouter()
 
@@ -22,7 +22,7 @@ async def get_page(
     slug: str,
     path: str,
     request: Request,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> ReadPageResponse:
     result = await session.execute(select(Workspace).where(Workspace.slug == slug))
     ws = result.scalar_one_or_none()
@@ -32,20 +32,19 @@ async def get_page(
     settings = request.app.state.settings
     ws_root = settings.fs.root / "workspaces" / str(ws.uuid)
 
+    import contextlib
     try:
         fd, resolved = open_workspace_page(ws_root, path)
     except UnsafePath as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
-    except FileNotFoundError:
-        raise HTTPException(status_code=404, detail=f"page {path!r} not found")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=f"page {path!r} not found") from exc
 
     try:
         raw_content = io.FileIO(fd).read()
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.close(fd)
-        except OSError:
-            pass
 
     content_str = raw_content.decode("utf-8", errors="replace")
     frontmatter, body = _split_frontmatter(content_str)

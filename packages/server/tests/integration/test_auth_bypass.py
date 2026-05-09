@@ -4,8 +4,6 @@ Parameterized over FastAPI router introspection + explicit MCP and admin paths.
 """
 from __future__ import annotations
 
-import os
-
 import pytest
 from fastapi.routing import APIRoute
 from httpx import ASGITransport, AsyncClient
@@ -80,7 +78,6 @@ async def test_anonymous_gets_401_on_all_routes(test_app):
     ],
 )
 async def test_bearer_edge_cases(test_app, auth_header: str | None, expected_status: int):
-    transport = ASGITransport(app=test_app)
     headers = {}
     if auth_header is not None:
         headers["Authorization"] = auth_header

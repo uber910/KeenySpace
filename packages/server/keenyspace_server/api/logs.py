@@ -1,15 +1,15 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from keenyspace_shared.mcp_contracts import AppendLogRequest, AppendLogResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from keenyspace_server.db.models import Workspace
 from keenyspace_server.db.session import get_db
 from keenyspace_server.wal import writer as wal_writer
-from keenyspace_shared.mcp_contracts import AppendLogRequest, AppendLogResponse
 
 router = APIRouter()
 
@@ -19,7 +19,7 @@ async def append_log_endpoint(
     slug: str,
     body: AppendLogRequest,
     request: Request,
-    session: AsyncSession = Depends(get_db),
+    session: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> AppendLogResponse:
     result = await session.execute(select(Workspace).where(Workspace.slug == slug))
     ws = result.scalar_one_or_none()
@@ -41,10 +41,9 @@ async def append_log_endpoint(
     from ulid import ULID as _ULID
     parent_ulid: _ULID | None = None
     if body.parent_id is not None:
-        try:
+        import contextlib
+        with contextlib.suppress(Exception):
             parent_ulid = _ULID.from_str(body.parent_id)
-        except Exception:
-            pass
 
     try:
         entry_id = await wal_writer.append_log(
@@ -59,9 +58,9 @@ async def append_log_endpoint(
             locks=locks,
         )
     except wal_writer.PayloadTooLarge as exc:
-        raise HTTPException(status_code=413, detail=str(exc))
+        raise HTTPException(status_code=413, detail=str(exc)) from exc
 
     return AppendLogResponse(
         entry_id=str(entry_id),
-        ts=datetime.now(timezone.utc),
+        ts=datetime.now(UTC),
     )

@@ -33,7 +33,6 @@ def app_env(fs_root, pg_url, monkeypatch):
 
 @pytest.fixture
 def app(app_env):
-    import importlib
     import keenyspace_server.config as cfg_module
     cfg_module.get_settings.cache_clear()
 
@@ -45,7 +44,7 @@ def app(app_env):
 
 @pytest_asyncio.fixture
 async def client(app):
-    transport = ASGITransport(app=app)
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
     async with AsyncClient(
         transport=transport,
         base_url="http://test",
