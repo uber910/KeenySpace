@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hmac
+
 from starlette.authentication import (
     AuthCredentials,
     AuthenticationBackend,
@@ -40,7 +42,7 @@ class DevTokenAuthBackend(AuthenticationBackend):
         if not provided:
             raise AuthenticationError("Empty token value")
 
-        if self._dev_token is None or provided != self._dev_token:
+        if self._dev_token is None or not hmac.compare_digest(provided, self._dev_token):
             raise AuthenticationError("Invalid token")
 
         return (
