@@ -64,3 +64,28 @@ def open_workspace_page(ws_root: Path, page_path: str) -> tuple[int, Path]:
         raise
 
     return fd, target
+
+
+_COMPILE_DENYLIST_PREFIXES: tuple[str, ...] = (
+    ".keenyspace/",
+    "logs/",
+    "_templates/",
+    "raw/",
+)
+_COMPILE_DENYLIST_EXACT: frozenset[str] = frozenset({"CLAUDE.md"})
+
+
+def is_compile_writable(ws_root: Path, path: str) -> bool:
+    """Return True iff `path` is a workspace-relative page the compile coordinator may write.
+
+    Refuses anything that fails the 4-layer pre-validation OR matches the D-07 denylist
+    ('.keenyspace/', 'logs/', '_templates/', 'raw/' prefixes; 'CLAUDE.md' exact).
+    """
+    try:
+        canonical = validate_relative_path(path)
+    except UnsafePath:
+        return False
+    for prefix in _COMPILE_DENYLIST_PREFIXES:
+        if canonical.startswith(prefix):
+            return False
+    return canonical not in _COMPILE_DENYLIST_EXACT

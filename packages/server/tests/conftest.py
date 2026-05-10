@@ -7,6 +7,11 @@ import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
 
+def pytest_configure(config):  # type: ignore[no-untyped-def]
+    config.addinivalue_line("markers", "eval: marker for compile evaluation suite (Plans 06-08)")
+    config.addinivalue_line("markers", "requires_anthropic: marker for fixtures that hit the real Anthropic API")
+
+
 @pytest.fixture
 def fs_root(tmp_path):
     root = tmp_path / "fs_root"
