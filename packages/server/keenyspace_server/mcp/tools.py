@@ -11,6 +11,7 @@ from fastmcp.server.dependencies import get_http_request
 from keenyspace_shared.mcp_contracts import AppendLogResponse, ReadPageResponse
 from sqlalchemy import select
 
+from keenyspace_server.compile.models import CompileStatusResponse, CompileTriggerResponse
 from keenyspace_server.db.models import Workspace
 from keenyspace_server.db.session import get_db_session
 from keenyspace_server.fs.path_safety import UnsafePath, open_workspace_page
@@ -120,6 +121,58 @@ async def append_log(
             entry_id=str(entry_id),
             ts=datetime.now(UTC),
         )
+
+
+async def compile_tool(workspace: str) -> CompileTriggerResponse:
+    """Trigger a compile pass for the workspace. Fire-and-forget; poll compile_status for state."""
+    with MCP_TOOL_CALL_DURATION.labels(tool="compile").time():
+        user = current_user_from_mcp()
+        _ = user
+
+        req = get_http_request()
+        app = req.app
+
+        async with get_db_session() as session:
+            result = await session.execute(select(Workspace).where(Workspace.slug == workspace))
+            ws = result.scalar_one_or_none()
+
+        if ws is None:
+            raise ToolError(f"workspace {workspace!r} not found")
+        if ws.compile_state == "paused":
+            raise ToolError(
+                f"workspace {workspace!r} is paused; "
+                f"reason={ws.compile_paused_reason!r}; "
+                f"call POST /v1/api/workspaces/{workspace}/compile/resume to clear"
+            )
+
+        coordinator = app.state.compile_coordinator
+        if coordinator is None:
+            raise ToolError("compile coordinator not initialised")
+        trigger_result: CompileTriggerResponse = await coordinator.trigger(ws.uuid, source="mcp_tool")
+        return trigger_result
+
+
+async def compile_status_tool(workspace: str) -> CompileStatusResponse:
+    """Return current compile state for a workspace."""
+    with MCP_TOOL_CALL_DURATION.labels(tool="compile_status").time():
+        user = current_user_from_mcp()
+        _ = user
+
+        req = get_http_request()
+        app = req.app
+
+        async with get_db_session() as session:
+            result = await session.execute(select(Workspace).where(Workspace.slug == workspace))
+            ws = result.scalar_one_or_none()
+
+        if ws is None:
+            raise ToolError(f"workspace {workspace!r} not found")
+
+        coordinator = app.state.compile_coordinator
+        if coordinator is None:
+            raise ToolError("compile coordinator not initialised")
+        status_result: CompileStatusResponse = await coordinator.status(ws.uuid)
+        return status_result
 
 
 def _split_frontmatter(content: str) -> tuple[dict[str, Any], str]:

@@ -54,6 +54,10 @@ strict = true
 module = ["apscheduler.*"]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = ["keenyspace_shared.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
