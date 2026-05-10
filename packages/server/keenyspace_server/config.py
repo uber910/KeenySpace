@@ -6,6 +6,8 @@ from pathlib import Path
 from pydantic import BaseModel
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from keenyspace_server.compile.settings import CompileSettings
+
 
 class ServerSettings(BaseModel):
     host: str = "0.0.0.0"
@@ -49,6 +51,7 @@ class Settings(BaseSettings):
     fs: FSSettings = FSSettings()
     wal: WALSettings = WALSettings()
     auth: AuthSettings = AuthSettings()
+    compile: CompileSettings = CompileSettings()
     auto_migrate: bool = False
 
 

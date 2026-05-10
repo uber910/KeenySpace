@@ -22,6 +22,9 @@ dependencies = [
     "httpx>=0.28",
     "pyyaml>=6.0.2",
     "keenyspace-shared",
+    "pydantic-ai-slim[anthropic]>=1.0,<2.0",
+    "instructor~=1.14",
+    "apscheduler>=3.10,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -33,6 +36,8 @@ dev = [
     "ruff>=0.9",
     "mypy>=1.14",
     "types-pyyaml>=6.0",
+    "respx>=0.21",
+    "pytest-httpx>=0.35",
 ]
 
 [project.scripts]
