@@ -25,6 +25,9 @@ class Workspace(Base):
     status: Mapped[str] = mapped_column(String(32))
     created_at: Mapped[datetime]
     archived_at: Mapped[datetime | None]
+    compile_state: Mapped[str] = mapped_column(String(32), server_default="idle")
+    compile_paused_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    compile_paused_at: Mapped[datetime | None]
 
     __table_args__ = (Index("ix_workspaces_slug", "slug"),)
 
@@ -93,3 +96,27 @@ class CompileCursor(Base):
     last_wal_id: Mapped[str] = mapped_column(String(26))
     last_compile_hash: Mapped[str] = mapped_column(String(64))
     updated_at: Mapped[datetime]
+
+
+class CompileRun(Base):
+    __tablename__ = "compile_runs"
+
+    id: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True), primary_key=True)
+    workspace_uuid: Mapped[UUID] = mapped_column(PG_UUID(as_uuid=True))
+    started_at: Mapped[datetime]
+    completed_at: Mapped[datetime | None]
+    status: Mapped[str] = mapped_column(String(64))
+    trigger_source: Mapped[str] = mapped_column(String(32))
+    wal_first_id: Mapped[str | None] = mapped_column(String(26), nullable=True)
+    wal_last_id: Mapped[str | None] = mapped_column(String(26), nullable=True)
+    plan_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    pages_written: Mapped[int] = mapped_column(default=0)
+    tokens_input: Mapped[int] = mapped_column(default=0)
+    tokens_output: Mapped[int] = mapped_column(default=0)
+    duration_ms: Mapped[int | None]
+    model: Mapped[str] = mapped_column(String(128))
+    error_message: Mapped[str | None]
+
+    __table_args__ = (
+        Index("ix_compile_runs_workspace_started", "workspace_uuid", "started_at"),
+    )
