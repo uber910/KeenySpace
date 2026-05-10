@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from prometheus_client import Counter, Histogram
+from prometheus_client import Counter, Gauge, Histogram
 from prometheus_fastapi_instrumentator import Instrumentator
 
 WAL_APPENDS_TOTAL = Counter(
@@ -27,6 +27,44 @@ MCP_TOOL_CALL_DURATION = Histogram(
     "MCP tool call duration in seconds",
     ["tool"],
     buckets=[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0],
+)
+
+
+COMPILE_RUNS_TOTAL = Counter(
+    "keenyspace_compile_runs_total",
+    "Total compile pass attempts",
+    ["workspace", "status"],
+)
+
+COMPILE_TOKENS_TOTAL = Counter(
+    "keenyspace_compile_tokens_total",
+    "Cumulative LLM tokens consumed by compile (input/output)",
+    ["workspace", "direction"],
+)
+
+COMPILE_DAILY_TOKENS = Gauge(
+    "keenyspace_compile_daily_tokens",
+    "Per-workspace daily token usage (reset at 00:00 UTC by APScheduler cron)",
+    ["workspace"],
+)
+
+COMPILE_PAUSED_TOTAL = Counter(
+    "keenyspace_compile_paused_total",
+    "Total compile passes that triggered a pause",
+    ["workspace", "reason"],
+)
+
+COMPILE_PASS_DURATION = Histogram(
+    "keenyspace_compile_pass_duration_seconds",
+    "Compile pass wall-clock duration",
+    ["workspace"],
+    buckets=[1, 5, 10, 30, 60, 180],
+)
+
+COMPILE_PAGES_WRITTEN_TOTAL = Counter(
+    "keenyspace_compile_pages_written_total",
+    "Total pages written by compile (create vs update)",
+    ["workspace", "action"],
 )
 
 

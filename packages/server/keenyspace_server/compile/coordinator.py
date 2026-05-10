@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -24,6 +25,15 @@ from keenyspace_server.compile.settings import CompileSettings
 from keenyspace_server.compile.wal_slice import extract_wal_slice
 from keenyspace_server.db.models import CompileCursor, CompileRun, Workspace
 from keenyspace_server.db.session import get_db_session
+from keenyspace_server.observability.metrics import (
+    COMPILE_DAILY_TOKENS,
+    COMPILE_PAGES_WRITTEN_TOTAL,
+    COMPILE_PASS_DURATION,
+    COMPILE_PAUSED_TOTAL,
+    COMPILE_RUNS_TOTAL,
+)
+
+# COMPILE_TOKENS_TOTAL increments deferred to v1.1 — real token accounting needs result.usage() wiring
 
 log = structlog.get_logger(__name__)
 
@@ -151,6 +161,8 @@ class CompileCoordinator:
                 )
             )
             await session.commit()
+        for ws in list(self._daily_tokens.keys()):
+            COMPILE_DAILY_TOKENS.labels(workspace=str(ws)).set(0)
         self._daily_tokens.clear()
         log.info("compile.daily_ceiling_reset")
 
@@ -174,6 +186,23 @@ class CompileCoordinator:
         run_id: str,
         source: str,
     ) -> CompileRunResult:
+        _pass_start = time.perf_counter()
+        try:
+            return await self._run_compile_pass_inner(ws_uuid, ws_root, run_id, source)
+        finally:
+            COMPILE_PASS_DURATION.labels(workspace=str(ws_uuid)).observe(
+                time.perf_counter() - _pass_start
+            )
+
+    async def _run_compile_pass_inner(
+        self,
+        ws_uuid: UUID,
+        ws_root: Path,
+        run_id: str,
+        source: str,
+    ) -> CompileRunResult:
+        # Compile activity is logged to compile_runs only; audit_log is reserved for
+        # security events (per CONTEXT D-16). Do NOT add audit_log entries here.
         started_at = datetime.now(UTC)
         log.info("compile.started", workspace=str(ws_uuid), run_id=run_id, trigger_source=source)
 
@@ -188,6 +217,7 @@ class CompileCoordinator:
                 wal_first_id=None, wal_last_id=None, plan_hash=None,
             )
             log.info("compile.idempotent_noop", workspace=str(ws_uuid), run_id=run_id, reason="empty_slice")
+            COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="idempotent_noop").inc()
             return CompileRunResult(status="idempotent_noop", pages_written=0)
 
         if self._daily_tokens.get(ws_uuid, 0) >= self.settings.daily_token_ceiling:
@@ -198,6 +228,7 @@ class CompileCoordinator:
                 wal_first_id=slice_.wal_first_id, wal_last_id=slice_.wal_last_id, plan_hash=None,
             )
             log.warning("compile.aborted", workspace=str(ws_uuid), reason="daily_ceiling")
+            COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_ceiling").inc()
             return CompileRunResult(status="paused", pages_written=0)
 
         await self._write_run_row(
@@ -223,13 +254,16 @@ class CompileCoordinator:
             if detector.triggered:
                 await self._pause(ws_uuid, reason="loop_abort", error=str(exc))
                 await self._update_run_row(ws_uuid, run_id, status="abort_loop", error_message=str(exc))
+                COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_loop").inc()
             else:
                 await self._pause(ws_uuid, reason="budget_exceeded", error=str(exc))
                 await self._update_run_row(ws_uuid, run_id, status="abort_budget", error_message=str(exc))
+                COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_budget").inc()
             raise
         except TimeoutError:
             await self._pause(ws_uuid, reason="timeout", error="agent timeout")
             await self._update_run_row(ws_uuid, run_id, status="abort_budget", error_message="timeout")
+            COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_budget").inc()
             raise
 
         plan_hash_value = hash_plan(slice_.wal_first_id or "", slice_.wal_last_id or "", plan)
@@ -240,6 +274,7 @@ class CompileCoordinator:
                 plan_hash=plan_hash_value, completed_at=datetime.now(UTC),
             )
             log.info("compile.idempotent_noop", workspace=str(ws_uuid), run_id=run_id, reason="hash_match")
+            COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="idempotent_noop").inc()
             return CompileRunResult(status="idempotent_noop", pages_written=0, plan_hash=plan_hash_value)
 
         try:
@@ -250,6 +285,7 @@ class CompileCoordinator:
                 ws_uuid, run_id, status="abort_plan_invalid",
                 error_message=str(exc), plan_hash=plan_hash_value,
             )
+            COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_plan_invalid").inc()
             raise
 
         await self._advance_cursor(ws_uuid, slice_.wal_last_id or "", plan_hash_value, last_wal_id)
@@ -257,6 +293,11 @@ class CompileCoordinator:
         # Conservative daily-token tracking; v1.1 will replace with result.usage() data
         estimated_tokens = max(1, len(deps.wal_text) // 4)
         self._daily_tokens[ws_uuid] = self._daily_tokens.get(ws_uuid, 0) + estimated_tokens
+        COMPILE_DAILY_TOKENS.labels(workspace=str(ws_uuid)).set(self._daily_tokens[ws_uuid])
+
+        for op in plan.ops:
+            COMPILE_PAGES_WRITTEN_TOTAL.labels(workspace=str(ws_uuid), action=op.action).inc()
+        COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="success").inc()
 
         await self._update_run_row(
             ws_uuid, run_id,
@@ -378,6 +419,7 @@ class CompileCoordinator:
                 )
             )
             await session.commit()
+        COMPILE_PAUSED_TOTAL.labels(workspace=str(ws_uuid), reason=reason).inc()
         log.warning(
             "compile.paused",
             workspace=str(ws_uuid), reason=reason, error=error,
