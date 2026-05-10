@@ -1,0 +1,8 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "create", "path": "notes/auth.md"}
+  ],
+  "required_body_fragments": [],
+  "required_notes_substring": ""
+}

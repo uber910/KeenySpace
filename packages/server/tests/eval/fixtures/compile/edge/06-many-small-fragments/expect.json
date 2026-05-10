@@ -1,0 +1,8 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "update", "path": "index.md"}
+  ],
+  "required_body_fragments": [],
+  "required_frontmatter_keys": []
+}

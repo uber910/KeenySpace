@@ -16,6 +16,9 @@ dist/
 .ruff_cache/
 .pytest_cache/
 
+# Eval judge verdict cache (non-deterministic LLM output, not committed)
+.eval-cache/
+
 # IDE
 .idea/
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
+from typing import Any
 
 import pytest
 from keenyspace_server.compile.agent import compile_agent, run_compile_agent
@@ -15,14 +16,14 @@ FIXTURES = Path(__file__).parent / "fixtures" / "compile" / "golden"
 pytestmark = pytest.mark.eval
 
 
-def _load_fixture(fixture_dir: Path) -> tuple[str, dict, Path]:
+def _load_fixture(fixture_dir: Path) -> tuple[str, dict[str, Any], Path]:
     wal_text = (fixture_dir / "wal.md").read_text(encoding="utf-8")
-    expect = json.loads((fixture_dir / "expect.json").read_text(encoding="utf-8"))
+    expect: dict[str, Any] = json.loads((fixture_dir / "expect.json").read_text(encoding="utf-8"))
     vault_path = fixture_dir / "vault"
     return wal_text, expect, vault_path
 
 
-def _synth_plan_from_expect(expect: dict) -> CompilePlan:
+def _synth_plan_from_expect(expect: dict[str, Any]) -> CompilePlan:
     body_fragments: list[str] = expect.get("required_body_fragments", [])
     fm_keys: list[str] = expect.get("required_frontmatter_keys", [])
     body = "\n\n".join(body_fragments) if body_fragments else "Compiled content."
