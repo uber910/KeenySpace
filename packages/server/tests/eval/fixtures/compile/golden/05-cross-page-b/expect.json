@@ -1,0 +1,10 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "create", "path": "notes/wal.md"},
+    {"action": "create", "path": "notes/database.md"},
+    {"action": "create", "path": "notes/cli.md"}
+  ],
+  "required_body_fragments": ["asyncio.Lock", "compile_cursors", "Typer"],
+  "required_frontmatter_keys": []
+}

@@ -1,0 +1,2 @@
+<wal_entry id="01HXAA0000000000000000A71" ts="2026-05-10T16:00:00+00:00" actor="dev:test" source="api" content_hash="sha256:placeholder" parent_id="">Each WAL entry is framed as a single-line XML element: &lt;wal_entry id="ULID" ts="ISO-8601-UTC" actor="..." source="..." content_hash="sha256:..." parent_id="..."&gt;content&lt;/wal_entry&gt;. The id is a 26-character ULID (Universally Unique Lexicographically Sortable Identifier) generated server-side at append time.</wal_entry>
+

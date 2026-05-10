@@ -1,0 +1,8 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "update", "path": "notes/auth.md"}
+  ],
+  "required_body_fragments": ["ks_live_", "OIDC"],
+  "required_frontmatter_keys": []
+}

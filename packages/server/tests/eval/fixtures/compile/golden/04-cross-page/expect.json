@@ -1,0 +1,9 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "create", "path": "notes/auth.md"},
+    {"action": "create", "path": "notes/ui.md"}
+  ],
+  "required_body_fragments": ["AuthMiddleware", "v1.5"],
+  "required_frontmatter_keys": []
+}

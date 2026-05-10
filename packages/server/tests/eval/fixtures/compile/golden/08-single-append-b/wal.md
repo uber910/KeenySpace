@@ -1,0 +1,2 @@
+<wal_entry id="01HXAA0000000000000000A81" ts="2026-05-10T17:00:00+00:00" actor="dev:test" source="api" content_hash="sha256:placeholder" parent_id="">The compile agent uses pydantic-ai version 1.x with defer_model_check=True on the Agent constructor. This flag defers Anthropic API key validation to the first run() call, which allows the module to be imported in test environments without ANTHROPIC_API_KEY set.</wal_entry>
+

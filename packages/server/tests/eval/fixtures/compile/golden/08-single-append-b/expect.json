@@ -1,0 +1,8 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "update", "path": "notes/compile.md"}
+  ],
+  "required_body_fragments": ["pydantic-ai", "defer_model_check"],
+  "required_frontmatter_keys": []
+}

@@ -1,0 +1,8 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "update", "path": "notes/api.md"}
+  ],
+  "required_body_fragments": ["FastAPI", "/v1/api/"],
+  "required_frontmatter_keys": []
+}

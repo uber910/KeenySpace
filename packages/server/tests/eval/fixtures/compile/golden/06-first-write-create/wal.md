@@ -1,0 +1,2 @@
+<wal_entry id="01HXAA0000000000000000A61" ts="2026-05-10T15:00:00+00:00" actor="dev:test" source="api" content_hash="sha256:placeholder" parent_id="">Atomic writes in KeenySpace use fsync(file) + os.rename() + fsync(parent_dir) sequence. The tmp file is always created in the same directory as the target page to ensure os.rename() is atomic across a single filesystem boundary. Using /tmp would make rename a cross-device copy+delete, violating atomicity.</wal_entry>
+

@@ -1,0 +1,8 @@
+{
+  "expected_status": "success",
+  "expected_ops": [
+    {"action": "create", "path": "notes/atomic-writes.md"}
+  ],
+  "required_body_fragments": ["fsync", "os.rename"],
+  "required_frontmatter_keys": []
+}
