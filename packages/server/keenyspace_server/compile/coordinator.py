@@ -5,10 +5,12 @@ import time
 from collections import defaultdict
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Literal, cast
 from uuid import UUID, uuid4
 
+import anthropic
 import structlog
-from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
 from sqlalchemy import select, update
 
 from keenyspace_server.compile.agent import run_compile_agent
@@ -85,7 +87,10 @@ class CompileCoordinator:
     async def trigger(self, ws_uuid: UUID, source: str) -> CompileTriggerResponse:
         ws_root = await self._workspace_root(ws_uuid)
         if ws_root is None:
-            return CompileTriggerResponse(job_id=str(uuid4()), status="paused")
+            raise ValueError(
+                f"workspace {ws_uuid}: filesystem directory does not exist; "
+                "ensure workspace was created correctly before triggering compile"
+            )
 
         ws_state = await self._workspace_state(ws_uuid)
         if ws_state == "paused":
@@ -97,18 +102,39 @@ class CompileCoordinator:
             if in_flight is not None:
                 return CompileTriggerResponse(job_id=in_flight, status="running")
 
+        run_id = str(uuid4())
+        task = asyncio.get_running_loop().create_task(
+            self._run_locked_pass(ws_uuid, ws_root, run_id, source)
+        )
+        self._debounce_tasks.add(task)
+        task.add_done_callback(self._debounce_tasks.discard)
+        return CompileTriggerResponse(job_id=run_id, status="queued")
+
+    async def _run_locked_pass(
+        self, ws_uuid: UUID, ws_root: Path, run_id: str, source: str
+    ) -> None:
+        lock = self._locks[ws_uuid]
         async with lock:
-            run_id = str(uuid4())
             self._inflight[ws_uuid] = run_id
             try:
-                result = await self._run_compile_pass(ws_uuid, ws_root, run_id, source)
+                await self._run_compile_pass(ws_uuid, ws_root, run_id, source)
+            except Exception as exc:
+                log.warning(
+                    "compile.pass_failed",
+                    workspace=str(ws_uuid), run_id=run_id, error=str(exc),
+                )
             finally:
                 self._inflight.pop(ws_uuid, None)
                 self._dirty.discard(ws_uuid)
-        return CompileTriggerResponse(
-            job_id=run_id,
-            status="idempotent_noop" if result.status == "idempotent_noop" else "queued",
-        )
+
+    async def wait_for_idle(self, ws_uuid: UUID, *, timeout: float = 10.0) -> None:
+        """Block until no compile pass is in-flight for `ws_uuid`. For test use."""
+        deadline = asyncio.get_running_loop().time() + timeout
+        while ws_uuid in self._inflight:
+            remaining = deadline - asyncio.get_running_loop().time()
+            if remaining <= 0:
+                raise TimeoutError(f"compile pass for {ws_uuid} did not finish within {timeout}s")
+            await asyncio.sleep(min(0.05, remaining))
 
     async def status(self, ws_uuid: UUID) -> CompileStatusResponse:
         async with get_db_session() as session:
@@ -126,7 +152,6 @@ class CompileCoordinator:
             )).scalar_one_or_none()
         if ws_row is None:
             return CompileStatusResponse(state="idle")
-        from typing import Literal, cast
         safe_state = ws_row.compile_state if ws_row.compile_state in ("idle", "running", "paused") else "idle"
         return CompileStatusResponse(
             state=cast(Literal["idle", "running", "paused"], safe_state),
@@ -206,6 +231,14 @@ class CompileCoordinator:
         started_at = datetime.now(UTC)
         log.info("compile.started", workspace=str(ws_uuid), run_id=run_id, trigger_source=source)
 
+        async with get_db_session() as session:
+            await session.execute(
+                update(Workspace)
+                .where(Workspace.uuid == ws_uuid)
+                .values(compile_state="running")
+            )
+            await session.commit()
+
         cursor_row = await self._read_cursor(ws_uuid)
         last_wal_id = cursor_row.last_wal_id if cursor_row else None
         slice_ = await asyncio.to_thread(extract_wal_slice, ws_root, last_wal_id)
@@ -216,6 +249,13 @@ class CompileCoordinator:
                 status="idempotent_noop", pages_written=0,
                 wal_first_id=None, wal_last_id=None, plan_hash=None,
             )
+            async with get_db_session() as session:
+                await session.execute(
+                    update(Workspace)
+                    .where(Workspace.uuid == ws_uuid)
+                    .values(compile_state="idle")
+                )
+                await session.commit()
             log.info("compile.idempotent_noop", workspace=str(ws_uuid), run_id=run_id, reason="empty_slice")
             COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="idempotent_noop").inc()
             return CompileRunResult(status="idempotent_noop", pages_written=0)
@@ -261,9 +301,22 @@ class CompileCoordinator:
                 COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_budget").inc()
             raise
         except TimeoutError:
-            await self._pause(ws_uuid, reason="timeout", error="agent timeout")
+            await self._pause(ws_uuid, reason="budget_exceeded", error="agent timeout")
             await self._update_run_row(ws_uuid, run_id, status="abort_budget", error_message="timeout")
             COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_budget").inc()
+            raise
+        except (
+            anthropic.APIStatusError,
+            anthropic.APIConnectionError,
+            UnexpectedModelBehavior,
+            Exception,
+        ) as exc:
+            await self._pause(ws_uuid, reason="llm_error", error=str(exc))
+            await self._update_run_row(
+                ws_uuid, run_id, status="abort_llm_error",
+                error_message=str(exc), completed_at=datetime.now(UTC),
+            )
+            COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_llm_error").inc()
             raise
 
         plan_hash_value = hash_plan(slice_.wal_first_id or "", slice_.wal_last_id or "", plan)
@@ -273,6 +326,13 @@ class CompileCoordinator:
                 ws_uuid, run_id, status="idempotent_noop",
                 plan_hash=plan_hash_value, completed_at=datetime.now(UTC),
             )
+            async with get_db_session() as session:
+                await session.execute(
+                    update(Workspace)
+                    .where(Workspace.uuid == ws_uuid)
+                    .values(compile_state="idle")
+                )
+                await session.commit()
             log.info("compile.idempotent_noop", workspace=str(ws_uuid), run_id=run_id, reason="hash_match")
             COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="idempotent_noop").inc()
             return CompileRunResult(status="idempotent_noop", pages_written=0, plan_hash=plan_hash_value)
@@ -306,6 +366,13 @@ class CompileCoordinator:
             plan_hash=plan_hash_value,
             completed_at=datetime.now(UTC),
         )
+        async with get_db_session() as session:
+            await session.execute(
+                update(Workspace)
+                .where(Workspace.uuid == ws_uuid)
+                .values(compile_state="idle")
+            )
+            await session.commit()
         log.info(
             "compile.finished",
             workspace=str(ws_uuid), run_id=run_id,

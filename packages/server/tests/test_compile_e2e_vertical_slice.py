@@ -75,6 +75,7 @@ async def test_post_compile_writes_a_page_end_to_end(tmp_path: Path) -> None:
         slug, ws_root = await _seed_workspace(client, dev_token)
         await _append_log(client, slug, dev_token, "hello world")
 
+        from keenyspace_server.compile.coordinator import get_coordinator
         with compile_agent.override(model=FunctionModel(_fake_model)):
             resp = await client.post(
                 f"/v1/api/workspaces/{slug}/compile",
@@ -85,6 +86,15 @@ async def test_post_compile_writes_a_page_end_to_end(tmp_path: Path) -> None:
         body = resp.json()
         assert body["status"] in ("queued", "running", "idempotent_noop")
         assert isinstance(body["job_id"], str) and len(body["job_id"]) > 0
+
+        coordinator = app.state.compile_coordinator
+        if coordinator is not None:
+            from keenyspace_server.db.models import Workspace as WsModel
+            from keenyspace_server.db.session import get_db_session as _get_db
+            from sqlalchemy import select as sa_select2
+            async with _get_db() as _s:
+                _ws = (await _s.execute(sa_select2(WsModel).where(WsModel.slug == slug))).scalar_one()
+            await coordinator.wait_for_idle(_ws.uuid, timeout=10.0)
 
         page = ws_root / "notes" / "from-wal.md"
         assert page.is_file(), f"Expected page at {page}; got dir contents: {list(ws_root.rglob('*'))}"

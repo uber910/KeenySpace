@@ -41,7 +41,10 @@ async def trigger_compile(
     coordinator = request.app.state.compile_coordinator
     if coordinator is None:
         raise HTTPException(status_code=503, detail="compile coordinator not initialised")
-    trigger_result: CompileTriggerResponse = await coordinator.trigger(ws.uuid, source="http_api")
+    try:
+        trigger_result: CompileTriggerResponse = await coordinator.trigger(ws.uuid, source="http_api")
+    except ValueError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     return trigger_result
 
 
