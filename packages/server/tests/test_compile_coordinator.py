@@ -48,7 +48,7 @@ async def test_trigger_returns_paused_when_workspace_state_is_paused(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_trigger_returns_paused_when_workspace_root_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_trigger_raises_when_workspace_root_missing(monkeypatch: pytest.MonkeyPatch) -> None:
     c = CompileCoordinator(CompileSettings())
 
     async def _fake_root_none(self: CompileCoordinator, ws_uuid: UUID) -> Path | None:
@@ -56,8 +56,8 @@ async def test_trigger_returns_paused_when_workspace_root_missing(monkeypatch: p
 
     monkeypatch.setattr(CompileCoordinator, "_workspace_root", _fake_root_none)
 
-    resp = await c.trigger(uuid4(), source="http_api")
-    assert resp.status == "paused"
+    with pytest.raises(ValueError, match="filesystem directory does not exist"):
+        await c.trigger(uuid4(), source="http_api")
 
 
 @pytest.mark.asyncio

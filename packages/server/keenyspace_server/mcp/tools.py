@@ -148,7 +148,10 @@ async def compile_tool(workspace: str) -> CompileTriggerResponse:
         coordinator = app.state.compile_coordinator
         if coordinator is None:
             raise ToolError("compile coordinator not initialised")
-        trigger_result: CompileTriggerResponse = await coordinator.trigger(ws.uuid, source="mcp_tool")
+        try:
+            trigger_result: CompileTriggerResponse = await coordinator.trigger(ws.uuid, source="mcp_tool")
+        except ValueError as exc:
+            raise ToolError(str(exc)) from exc
         return trigger_result
 
 
