@@ -4,6 +4,8 @@ from pydantic import BaseModel
 
 
 class CompileSettings(BaseModel):
+    """Compile-pipeline defaults. Loaded via Settings nesting (KEENYSPACE_COMPILE__*)."""
+
     debounce_seconds: int = 30
     backstop_interval_minutes: int = 15
     max_tool_calls: int = 20
