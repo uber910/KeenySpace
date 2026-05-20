@@ -3,7 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from keenyspace_server.compile.settings import CompileSettings
@@ -33,7 +33,32 @@ class WALSettings(BaseModel):
 
 
 class AuthSettings(BaseModel):
-    dev_token: str | None = None
+    model_config = ConfigDict(extra="forbid")
+
+    oidc_issuer_url: str
+    oidc_client_id: str
+    oidc_client_secret: str
+    oidc_redirect_uri: str
+    oidc_post_logout_redirect_uri: str
+
+    session_secret_key: str
+    cookie_path_ks_at: str = "/v1"
+    cookie_path_ks_rt: str = "/v1/api/auth"
+    cookie_samesite_ks_at: str = "lax"
+    cookie_samesite_ks_rt: str = "strict"
+    cookie_secure: bool = True
+
+    # pepper защищает от offline rainbow-table при DB dump
+    api_key_pepper: str
+
+    jwks_ttl_seconds: int = 3600
+    jwks_min_retry_interval_seconds: int = 30
+    jwks_max_retry_interval_seconds: int = 300
+
+    refresh_threshold_seconds: int = 60
+
+    api_key_last_used_debounce_seconds: int = 300
+
     multi_worker: bool = False
 
 
@@ -50,7 +75,7 @@ class Settings(BaseSettings):
     db: DBSettings
     fs: FSSettings = FSSettings()
     wal: WALSettings = WALSettings()
-    auth: AuthSettings = AuthSettings()
+    auth: AuthSettings
     compile: CompileSettings = CompileSettings()
     auto_migrate: bool = False
 
