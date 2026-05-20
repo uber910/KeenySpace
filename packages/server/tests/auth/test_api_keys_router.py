@@ -15,9 +15,7 @@ import pytest
 
 @pytest.mark.asyncio
 async def test_post_mints_plaintext_once(api_key_client) -> None:
-    resp = await api_key_client.post(
-        "/v1/api/auth/api-keys", json={"name": "dev"}
-    )
+    resp = await api_key_client.post("/v1/api/auth/api-keys", json={"name": "dev"})
     assert resp.status_code == 201, resp.text
     body = resp.json()
     assert body["key"].startswith("ks_live_")
@@ -30,25 +28,19 @@ async def test_post_mints_plaintext_once(api_key_client) -> None:
 
 @pytest.mark.asyncio
 async def test_post_empty_name_returns_422(api_key_client) -> None:
-    resp = await api_key_client.post(
-        "/v1/api/auth/api-keys", json={"name": ""}
-    )
+    resp = await api_key_client.post("/v1/api/auth/api-keys", json={"name": ""})
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_post_oversized_name_returns_422(api_key_client) -> None:
-    resp = await api_key_client.post(
-        "/v1/api/auth/api-keys", json={"name": "x" * 129}
-    )
+    resp = await api_key_client.post("/v1/api/auth/api-keys", json={"name": "x" * 129})
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
 async def test_get_lists_without_plaintext(api_key_client) -> None:
-    minted = (
-        await api_key_client.post("/v1/api/auth/api-keys", json={"name": "k1"})
-    ).json()
+    minted = (await api_key_client.post("/v1/api/auth/api-keys", json={"name": "k1"})).json()
     resp = await api_key_client.get("/v1/api/auth/api-keys")
     assert resp.status_code == 200
     items = resp.json()
@@ -61,17 +53,13 @@ async def test_get_lists_without_plaintext(api_key_client) -> None:
 
 @pytest.mark.asyncio
 async def test_delete_revokes_key(api_key_client) -> None:
-    minted = (
-        await api_key_client.post("/v1/api/auth/api-keys", json={"name": "k2"})
-    ).json()
+    minted = (await api_key_client.post("/v1/api/auth/api-keys", json={"name": "k2"})).json()
     resp = await api_key_client.delete(f"/v1/api/auth/api-keys/{minted['id']}")
     assert resp.status_code == 204
     items = (await api_key_client.get("/v1/api/auth/api-keys")).json()
     target = next(it for it in items if it["id"] == minted["id"])
     assert target["revoked_at"] is not None
-    resp2 = await api_key_client.delete(
-        f"/v1/api/auth/api-keys/{minted['id']}"
-    )
+    resp2 = await api_key_client.delete(f"/v1/api/auth/api-keys/{minted['id']}")
     assert resp2.status_code == 404
 
 
@@ -93,17 +81,13 @@ async def test_audit_log_minted_no_plaintext(api_key_client, pg_url) -> None:
     import sqlalchemy as sa
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    minted = (
-        await api_key_client.post("/v1/api/auth/api-keys", json={"name": "audit"})
-    ).json()
+    minted = (await api_key_client.post("/v1/api/auth/api-keys", json={"name": "audit"})).json()
     plaintext = minted["key"]
     body = plaintext[len("ks_live_") :]
     engine = create_async_engine(pg_url)
     async with engine.connect() as conn:
         r = await conn.execute(
-            sa.text(
-                "SELECT payload FROM audit_log WHERE action='auth.api_key.minted'"
-            )
+            sa.text("SELECT payload FROM audit_log WHERE action='auth.api_key.minted'")
         )
         rows = [row[0] for row in r]
     await engine.dispose()
@@ -120,19 +104,13 @@ async def test_audit_log_revoked_payload_shape(api_key_client, pg_url) -> None:
     import sqlalchemy as sa
     from sqlalchemy.ext.asyncio import create_async_engine
 
-    minted = (
-        await api_key_client.post("/v1/api/auth/api-keys", json={"name": "r"})
-    ).json()
-    resp = await api_key_client.delete(
-        f"/v1/api/auth/api-keys/{minted['id']}"
-    )
+    minted = (await api_key_client.post("/v1/api/auth/api-keys", json={"name": "r"})).json()
+    resp = await api_key_client.delete(f"/v1/api/auth/api-keys/{minted['id']}")
     assert resp.status_code == 204
     engine = create_async_engine(pg_url)
     async with engine.connect() as conn:
         r = await conn.execute(
-            sa.text(
-                "SELECT payload FROM audit_log WHERE action='auth.api_key.revoked'"
-            )
+            sa.text("SELECT payload FROM audit_log WHERE action='auth.api_key.revoked'")
         )
         payloads = [row[0] for row in r]
     await engine.dispose()

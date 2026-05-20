@@ -3,6 +3,7 @@
 RED gate: imports + pure-fn helpers ДОЛЖНЫ существовать перед service GREEN.
 Полные unit tests (mint/verify/list/revoke/debounce) добавляются task 03-02-04.
 """
+
 from __future__ import annotations
 
 import hashlib
