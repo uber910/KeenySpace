@@ -323,6 +323,23 @@ async def import_workspace(
                     error=str(audit_exc),
                 )
             raise WorkspaceSlugConflictError(slug) from exc
+        except Exception:
+            # Any non-IntegrityError commit-time failure (asyncpg InterfaceError,
+            # OperationalError from pool exhaustion / connection drop, transient
+            # DatabaseError, RuntimeError during lifespan shutdown) would leave
+            # final_dir on disk with no DB row referencing it. The slug stays
+            # claimable (no row was committed), but the orphan dir would
+            # accumulate indefinitely without a doctor sweep. Roll back and reap
+            # the now-orphaned FS so retry stays clean.
+            await session.rollback()
+            shutil.rmtree(final_dir, ignore_errors=True)
+            outcome = "fs_orphan_reaped"
+            log.warning(
+                "workspace.import.fs_orphan_reaped",
+                slug=slug,
+                uuid=str(new_uuid),
+            )
+            raise
 
         outcome = "success"
         log.info(
