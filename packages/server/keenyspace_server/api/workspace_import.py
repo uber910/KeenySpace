@@ -27,6 +27,15 @@ log = structlog.get_logger(__name__)
 router = APIRouter()
 
 _UPLOAD_CHUNK_BYTES = 64 * 1024
+# WR-12: cap the COMPRESSED upload size before _validate_zip_sync runs. The
+# uncompressed-size cap (MAX_IMPORT_UNCOMPRESSED_BYTES = 200 MB) only checks
+# the sum of entry sizes inside the zip, AFTER the upload has fully landed
+# on disk. Without a compressed-byte cap, a zip-bomb attacker can stream an
+# arbitrarily large blob into <fs_root>/.tmp/upload_*.zip and exhaust disk
+# before validation runs. 100 MB is a generous ceiling for typical workspace
+# zips while still bounding worst-case disk pressure under a single-worker
+# uvicorn deployment.
+_MAX_COMPRESSED_UPLOAD_BYTES = 100 * 1024 * 1024
 
 
 @router.post("/import", response_model=WorkspaceImportResponse, status_code=201)
@@ -55,11 +64,27 @@ async def import_endpoint(
         tmp_root.mkdir(parents=True, exist_ok=True)
         upload_tmp = tmp_root / f"upload_{secrets.token_hex(8)}.zip"
 
+        written = 0
         with upload_tmp.open("wb") as f:
             while True:
                 chunk = await file.read(_UPLOAD_CHUNK_BYTES)
                 if not chunk:
                     break
+                written += len(chunk)
+                if written > _MAX_COMPRESSED_UPLOAD_BYTES:
+                    # Abort BEFORE writing the chunk that would push past the
+                    # cap. The finally block unlinks upload_tmp so the partial
+                    # file is reaped immediately.
+                    raise HTTPException(
+                        status_code=413,
+                        detail={
+                            "code": "upload_too_large",
+                            "message": (
+                                f"compressed upload exceeds "
+                                f"{_MAX_COMPRESSED_UPLOAD_BYTES} bytes"
+                            ),
+                        },
+                    )
                 f.write(chunk)
 
         try:
