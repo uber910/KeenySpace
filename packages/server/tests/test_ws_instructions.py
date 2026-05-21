@@ -1,0 +1,189 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+
+def _write_instruction(path: Path, frontmatter: str, body: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"---\n{frontmatter}\n---\n{body}")
+
+
+@pytest.mark.asyncio
+async def test_missing_file_raises_instruction_not_found(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import InstructionNotFoundError, load_and_render_instructions
+
+    with pytest.raises(InstructionNotFoundError, match="ingest"):
+        await load_and_render_instructions(
+            tmp_path,
+            command="ingest",
+            workspace_meta={"slug": "my-ws"},
+            context={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_renders_body_with_workspace_meta(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: []\nsteps: []", "Hello {{ workspace.slug }}")
+
+    result = await load_and_render_instructions(
+        tmp_path,
+        command="ingest",
+        workspace_meta={"slug": "my-ws"},
+        context={},
+    )
+    assert result.prompt == "Hello my-ws"
+
+
+@pytest.mark.asyncio
+async def test_renders_body_with_context(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: []\nsteps: []", "Source: {{ context.source_path }}")
+
+    result = await load_and_render_instructions(
+        tmp_path,
+        command="ingest",
+        workspace_meta={"slug": "ws"},
+        context={"source_path": "/data/src.md"},
+    )
+    assert "Source: /data/src.md" in result.prompt
+
+
+@pytest.mark.asyncio
+async def test_strict_undefined_raises_template_error(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import InstructionTemplateError, load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: []\nsteps: []", "{{ context.missing_key }}")
+
+    with pytest.raises(InstructionTemplateError, match="missing context key"):
+        await load_and_render_instructions(
+            tmp_path,
+            command="ingest",
+            workspace_meta={"slug": "ws"},
+            context={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_dunder_access_blocked_raises_template_error(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import InstructionTemplateError, load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: []\nsteps: []", "{{ workspace.__class__ }}")
+
+    with pytest.raises(InstructionTemplateError, match="template injection blocked"):
+        await load_and_render_instructions(
+            tmp_path,
+            command="ingest",
+            workspace_meta={"slug": "ws", "__class__": "whatever"},
+            context={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_oversized_file_raises_template_error(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import InstructionTemplateError, load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    instr_path.parent.mkdir(parents=True, exist_ok=True)
+    instr_path.write_bytes(b"x" * (65 * 1024))
+
+    with pytest.raises(InstructionTemplateError, match="too large"):
+        await load_and_render_instructions(
+            tmp_path,
+            command="ingest",
+            workspace_meta={"slug": "ws"},
+            context={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_tool_whitelist_must_be_list_of_strings(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import InstructionTemplateError, load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: not_a_list\nsteps: []", "body")
+
+    with pytest.raises(InstructionTemplateError):
+        await load_and_render_instructions(
+            tmp_path,
+            command="ingest",
+            workspace_meta={"slug": "ws"},
+            context={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_steps_must_be_list_of_strings(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import InstructionTemplateError, load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: []\nsteps:\n  k: v", "body")
+
+    with pytest.raises(InstructionTemplateError):
+        await load_and_render_instructions(
+            tmp_path,
+            command="ingest",
+            workspace_meta={"slug": "ws"},
+            context={},
+        )
+
+
+@pytest.mark.asyncio
+async def test_model_optional(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: []\nsteps: []", "body")
+
+    result = await load_and_render_instructions(
+        tmp_path,
+        command="ingest",
+        workspace_meta={"slug": "ws"},
+        context={},
+    )
+    assert result.model is None
+
+
+@pytest.mark.asyncio
+async def test_model_string_passes_through(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(instr_path, "tool_whitelist: []\nsteps: []\nmodel: claude-sonnet-4-5", "body")
+
+    result = await load_and_render_instructions(
+        tmp_path,
+        command="ingest",
+        workspace_meta={"slug": "ws"},
+        context={},
+    )
+    assert result.model == "claude-sonnet-4-5"
+
+
+@pytest.mark.asyncio
+async def test_steps_rendered_with_context(tmp_path: Path) -> None:
+    from keenyspace_server.ws.instructions import load_and_render_instructions
+
+    instr_path = tmp_path / ".keenyspace" / "instructions" / "ingest.md"
+    _write_instruction(
+        instr_path,
+        "tool_whitelist: []\nsteps:\n  - 'Load {{ context.source_path }}'\n  - Done",
+        "body",
+    )
+
+    result = await load_and_render_instructions(
+        tmp_path,
+        command="ingest",
+        workspace_meta={"slug": "ws"},
+        context={"source_path": "/data/x.md"},
+    )
+    assert "/data/x.md" in result.steps[0]
+    assert result.steps[1] == "Done"
