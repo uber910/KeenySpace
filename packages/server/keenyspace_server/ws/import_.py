@@ -62,11 +62,27 @@ def _validate_zip_sync(zip_path: Path) -> _ZipValidation:
         raise WorkspaceImportError("bad_zip", f"zip is corrupt: {exc}") from exc
 
     try:
+        broken = zf.testzip()
+        if broken is not None:
+            raise WorkspaceImportError(
+                "bad_zip",
+                f"zip CRC check failed for entry: {broken!r}",
+            )
         infolist = zf.infolist()
         total = 0
         has_md = False
         for info in infolist:
             name = info.filename
+            if "\x00" in name or any(ord(c) < 0x20 for c in name):
+                raise WorkspaceImportError(
+                    "invalid_filename",
+                    f"control chars in entry: {name!r}",
+                )
+            if "\\" in name:
+                raise WorkspaceImportError(
+                    "invalid_filename",
+                    f"backslash in entry: {name!r}",
+                )
             norm = posixpath.normpath(name)
             parts = norm.split("/")
             if ".." in parts or posixpath.isabs(norm):
@@ -74,6 +90,22 @@ def _validate_zip_sync(zip_path: Path) -> _ZipValidation:
                     "path_traversal",
                     f"unsafe zip entry: {name!r}",
                 )
+            for part in parts:
+                if part in ("", "."):
+                    continue
+                # Allow `.keenyspace` top-level (canonical config dir); reject
+                # all other dot-prefixed components to keep operators from
+                # importing zips that smuggle .htaccess / .env / .git surfaces.
+                if part.startswith(".") and part != ".keenyspace":
+                    raise WorkspaceImportError(
+                        "hidden_entry",
+                        f"entry has hidden component: {name!r}",
+                    )
+                if len(part.encode("utf-8")) > 255:
+                    raise WorkspaceImportError(
+                        "name_too_long",
+                        f"component exceeds 255 bytes: {name!r}",
+                    )
             mode = info.external_attr >> 16
             if stat.S_ISLNK(mode):
                 raise WorkspaceImportError(
