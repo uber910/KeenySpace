@@ -3,8 +3,6 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-import pytest
-
 
 def _touch(p: Path, mtime_ns: int) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
