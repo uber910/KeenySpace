@@ -56,11 +56,3 @@ def test_mcp_tool_stubs_importable() -> None:
         get_instructions_tool,
     ):
         assert callable(fn), f"{fn!r} is not callable"
-
-
-@pytest.mark.asyncio
-async def test_stubs_raise_not_implemented() -> None:
-    from keenyspace_server.mcp.recent_tool import get_recent_changes_tool
-
-    with pytest.raises(NotImplementedError):
-        await get_recent_changes_tool("test-ws")
