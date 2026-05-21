@@ -41,7 +41,6 @@ async def _seed_api_key_post_lifespan() -> tuple[str, str]:
     import secrets
 
     from argon2 import PasswordHasher
-
     from keenyspace_server.config import get_settings
     from keenyspace_server.db.session import get_db_session
 
