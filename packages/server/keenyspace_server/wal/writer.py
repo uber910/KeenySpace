@@ -21,6 +21,10 @@ class PayloadTooLargeError(ValueError):
 PayloadTooLarge = PayloadTooLargeError
 
 
+class WorkspaceArchivedError(ValueError):
+    pass
+
+
 def _blocking_append(wal_file: Path, payload: bytes, multi_worker: bool) -> None:
     wal_file.parent.mkdir(parents=True, exist_ok=True)
     fd = os.open(wal_file, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
@@ -52,6 +56,28 @@ async def append_log(
 ) -> ULID:
     max_bytes: int = getattr(getattr(settings, "wal", settings), "max_entry_bytes", 256 * 1024)
     multi_worker: bool = getattr(getattr(settings, "auth", settings), "multi_worker", False)
+
+    # D-01 / D-03: pre-flight Workspace.status check BEFORE lock acquisition. The
+    # TOCTOU window (archive flips between this check and lock acquisition) is
+    # acceptable per D-03 (DB = source of truth; one stray append after archive
+    # has negligible impact and coordinator will be paused within milliseconds).
+    # Skip when DB engine hasn't been initialized (unit-test environments without lifespan).
+    try:
+        from sqlalchemy import select as _select
+        from keenyspace_server.db.models import Workspace as _Workspace
+        from keenyspace_server.db.session import get_db_session as _get_db_session
+        async with _get_db_session() as _session:
+            _status = (await _session.execute(
+                _select(_Workspace.status).where(_Workspace.uuid == ws_uuid)
+            )).scalar_one_or_none()
+        if _status == "archived":
+            raise WorkspaceArchivedError(
+                f"workspace {ws_uuid} is archived; unarchive before appending"
+            )
+    except WorkspaceArchivedError:
+        raise
+    except RuntimeError:
+        pass
 
     ws_lock = await locks.for_workspace(ws_uuid)
     async with ws_lock:

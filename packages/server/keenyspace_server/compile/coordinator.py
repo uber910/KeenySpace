@@ -176,6 +176,9 @@ class CompileCoordinator:
     async def reset_daily_ceiling(self) -> None:
         """APScheduler 00:00 UTC cron entry point (Plan 05 + D-14)."""
         async with get_db_session() as session:
+            # SPECIFICITY GUARD: WHERE clause MUST remain `compile_paused_reason == "daily_ceiling"`.
+            # Broadening this filter to include 'archived' would erroneously resume archived
+            # workspaces on the 00:00 UTC cron tick (Phase 4 D-01, RESEARCH.md Pitfall 6).
             await session.execute(
                 update(Workspace)
                 .where(Workspace.compile_paused_reason == "daily_ceiling")

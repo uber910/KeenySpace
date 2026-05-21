@@ -12,6 +12,18 @@ import yaml
 from .atomic import write_atomic
 
 
+def _move_instructions_to_keenyspace(ws_dir: Path) -> None:
+    instructions_src = ws_dir / "_instructions"
+    if not instructions_src.is_dir():
+        return
+    keenyspace_dir = ws_dir / ".keenyspace"
+    keenyspace_dir.mkdir(parents=True, exist_ok=True)
+    instructions_dst = keenyspace_dir / "instructions"
+    if instructions_dst.exists():
+        return
+    os.rename(instructions_src, instructions_dst)
+
+
 def clone_default_blueprint(
     fs_root: Path,
     blueprint_name: str,
@@ -31,6 +43,7 @@ def clone_default_blueprint(
         ignore_dangling_symlinks=True,
     )
     os.replace(tmp, final)
+    _move_instructions_to_keenyspace(final)
 
     _write_workspace_config(
         final,
