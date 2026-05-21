@@ -62,7 +62,8 @@ async def append_log(
     # acceptable per D-03 (DB = source of truth; one stray append after archive
     # has negligible impact and coordinator will be paused within milliseconds).
     # Skip when DB engine hasn't been initialized (unit-test environments without lifespan).
-    try:
+    from keenyspace_server.db.session import get_engine as _get_engine
+    if _get_engine() is not None:
         from sqlalchemy import select as _select
 
         from keenyspace_server.db.models import Workspace as _Workspace
@@ -75,10 +76,6 @@ async def append_log(
             raise WorkspaceArchivedError(
                 f"workspace {ws_uuid} is archived; unarchive before appending"
             )
-    except WorkspaceArchivedError:
-        raise
-    except RuntimeError:
-        pass
 
     ws_lock = await locks.for_workspace(ws_uuid)
     async with ws_lock:
