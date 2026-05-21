@@ -60,8 +60,6 @@ def test_mcp_tool_stubs_importable() -> None:
 
 @pytest.mark.asyncio
 async def test_stubs_raise_not_implemented() -> None:
-    from keenyspace_server.mcp.blueprint_tools import get_instructions_tool, list_blueprints_tool
-    from keenyspace_server.mcp.page_tools import list_pages_tool, search_workspace_tool
     from keenyspace_server.mcp.recent_tool import get_recent_changes_tool
     from keenyspace_server.mcp.workspace_tools import get_workspace_info_tool, list_workspaces_tool
 
@@ -72,16 +70,4 @@ async def test_stubs_raise_not_implemented() -> None:
         await get_workspace_info_tool("test-ws")
 
     with pytest.raises(NotImplementedError):
-        await list_pages_tool("test-ws")
-
-    with pytest.raises(NotImplementedError):
-        await search_workspace_tool("test-ws", "query")
-
-    with pytest.raises(NotImplementedError):
         await get_recent_changes_tool("test-ws")
-
-    with pytest.raises(NotImplementedError):
-        await list_blueprints_tool()
-
-    with pytest.raises(NotImplementedError):
-        await get_instructions_tool("test-ws", "ingest", {})

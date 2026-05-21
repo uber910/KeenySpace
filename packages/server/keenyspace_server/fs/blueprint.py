@@ -7,9 +7,12 @@ from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
+import structlog
 import yaml
 
 from .atomic import write_atomic
+
+log = structlog.get_logger(__name__)
 
 
 def _move_instructions_to_keenyspace(ws_dir: Path) -> None:
@@ -20,6 +23,12 @@ def _move_instructions_to_keenyspace(ws_dir: Path) -> None:
     keenyspace_dir.mkdir(parents=True, exist_ok=True)
     instructions_dst = keenyspace_dir / "instructions"
     if instructions_dst.exists():
+        log.warning(
+            "blueprint.instructions_dst_already_exists",
+            ws_dir=str(ws_dir),
+            instructions_src=str(instructions_src),
+            instructions_dst=str(instructions_dst),
+        )
         return
     os.rename(instructions_src, instructions_dst)
 
