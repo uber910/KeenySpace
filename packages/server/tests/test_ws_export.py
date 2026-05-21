@@ -6,10 +6,8 @@ import zipfile
 from pathlib import Path
 
 import pytest
-
 from keenyspace_server.ws.export import (
     ExportTooLargeError,
-    MAX_EXPORT_UNCOMPRESSED_BYTES,
     build_workspace_zip,
     iter_workspace_files,
 )
