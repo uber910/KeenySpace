@@ -313,7 +313,6 @@ class CompileCoordinator:
             anthropic.APIStatusError,
             anthropic.APIConnectionError,
             UnexpectedModelBehavior,
-            Exception,
         ) as exc:
             await self._pause(ws_uuid, reason="llm_error", error=str(exc))
             await self._update_run_row(
