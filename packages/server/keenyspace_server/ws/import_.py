@@ -290,6 +290,30 @@ async def import_workspace(
             await session.rollback()
             shutil.rmtree(final_dir, ignore_errors=True)
             outcome = "conflict"
+            # Persist a conflict audit row in a SEPARATE session: the rollback
+            # above wiped the workspace.imported audit entry we staged earlier,
+            # but the conflict event is forensically valuable (slug-collision
+            # brute-force signal). Best-effort; failures to write the audit row
+            # do not mask the conflict error.
+            try:
+                from keenyspace_server.db.session import (
+                    get_db_session as _audit_session,
+                )
+                async with _audit_session() as audit_sess:
+                    await write_audit(
+                        audit_sess,
+                        actor_sub=actor_sub,
+                        action="workspace.import_conflict",
+                        workspace_uuid=None,
+                        payload={"workspace_slug": slug, "user_sub": actor_sub},
+                    )
+                    await audit_sess.commit()
+            except Exception as audit_exc:
+                log.warning(
+                    "workspace.import.conflict_audit_failed",
+                    slug=slug,
+                    error=str(audit_exc),
+                )
             raise WorkspaceSlugConflictError(slug) from exc
 
         outcome = "success"
