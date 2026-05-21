@@ -169,6 +169,17 @@ def _unpack_zip_sync(zip_path: Path, dest: Path) -> None:
             zf.extract(info, dest)
 
 
+def _rename_and_fsync(src: Path, dst: Path) -> None:
+    """Atomic rename + parent dir fsync for durability (matches write_atomic)."""
+    os.rename(src, dst)
+    parent = dst.parent
+    fd = os.open(parent, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
 async def import_workspace(
     session: AsyncSession,
     *,
@@ -258,15 +269,29 @@ async def import_workspace(
                 "blueprint_ref": blueprint_ref,
             },
         )
+
+        # FS-then-DB ordering (D-08): move the workspace dir into place BEFORE
+        # committing the workspaces row. If the rename fails, we rollback the
+        # session and the slug is still claimable. If the commit fails after a
+        # successful rename, we remove the orphaned final_dir before raising.
+        try:
+            await asyncio.to_thread(_rename_and_fsync, import_tmp, final_dir)
+        except OSError as exc:
+            await session.rollback()
+            raise WorkspaceImportError(
+                "fs_rename_failed",
+                f"could not move workspace into place: {exc}",
+            ) from exc
+        cleanup_tmp = False
+
         try:
             await session.commit()
         except IntegrityError as exc:
             await session.rollback()
+            shutil.rmtree(final_dir, ignore_errors=True)
             outcome = "conflict"
             raise WorkspaceSlugConflictError(slug) from exc
 
-        os.rename(import_tmp, final_dir)
-        cleanup_tmp = False
         outcome = "success"
         log.info(
             "workspace.imported",
