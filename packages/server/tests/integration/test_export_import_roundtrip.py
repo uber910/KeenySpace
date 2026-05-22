@@ -329,3 +329,95 @@ async def test_import_unauthenticated_401(app, pg_url) -> None:  # type: ignore[
                 files={"file": ("a.zip", zb, "application/zip")},
             )
             assert resp.status_code == 401
+
+
+async def test_unmodified_default_blueprint_roundtrip_no_skip(app, pg_url) -> None:  # type: ignore[no-untyped-def]
+    """G-4 regression: the canonical default-blueprint workspace roundtrips.
+
+    Reproduces UAT Test 13. Before the G-4 fix, this test returns 422
+    hidden_entry on raw/.gitkeep. After the fix, it returns 201 and the
+    nested dotfile survives.
+
+    Uses pytest.fail on non-200 health (NOT pytest.skip) -- the original UAT
+    bug was hidden by tests that skipped past 5xx responses.
+    """
+    from keenyspace_server.config import get_settings
+    from keenyspace_server.db.models import AuditLog, Workspace
+    from keenyspace_server.db.session import get_db_session
+
+    await _reset_schema(pg_url)
+    async with app.router.lifespan_context(app):
+        _, plaintext = await _seed_api_key_post_lifespan()
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {plaintext}"},
+        ) as client:
+            health = await client.get("/healthz")
+            if health.status_code != 200:
+                pytest.fail(
+                    f"/healthz not green: status={health.status_code} "
+                    f"body={health.text}"
+                )
+
+            slug_a = await _seed_workspace(client)
+
+            async with get_db_session() as session:
+                ws_a = (
+                    await session.execute(
+                        select(Workspace).where(Workspace.slug == slug_a)
+                    )
+                ).scalar_one()
+            settings = get_settings()
+            ws_a_dir = settings.fs.root / "workspaces" / str(ws_a.uuid)
+            assert (ws_a_dir / "raw" / ".gitkeep").exists(), (
+                "default blueprint clone did not produce raw/.gitkeep -- "
+                "G-4 test prerequisite missing; investigate clone_default_blueprint"
+            )
+
+            exp = await client.get(f"/v1/api/workspaces/{slug_a}/export")
+            assert exp.status_code == 200, exp.text
+            zip_bytes = exp.content
+            with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+                names = set(zf.namelist())
+                assert "raw/.gitkeep" in names, (
+                    "export did not include raw/.gitkeep -- export side may "
+                    f"have regressed; namelist={sorted(names)}"
+                )
+
+            slug_b = f"g4-dst-{uuid4().hex[:8]}"
+            imp = await client.post(
+                "/v1/api/workspaces/import",
+                data={"slug": slug_b},
+                files={"file": ("a.zip", zip_bytes, "application/zip")},
+            )
+            assert imp.status_code == 201, (
+                f"G-4 regression: import returned {imp.status_code} "
+                f"body={imp.text}. Expected 201. The canonical default-"
+                f"blueprint zip contains raw/.gitkeep which was rejected by "
+                f"the pre-G-4 blanket hidden_entry rule."
+            )
+
+            payload = imp.json()
+            async with get_db_session() as session:
+                ws_b = (
+                    await session.execute(
+                        select(Workspace).where(Workspace.slug == payload["slug"])
+                    )
+                ).scalar_one()
+            ws_b_dir = settings.fs.root / "workspaces" / str(ws_b.uuid)
+            assert (ws_b_dir / "raw" / ".gitkeep").exists(), (
+                "raw/.gitkeep was accepted by validator but missing on disk "
+                "after import -- investigate _unpack_zip_sync"
+            )
+
+            async with get_db_session() as session:
+                actions = {
+                    r.action
+                    for r in (
+                        await session.execute(select(AuditLog))
+                    ).scalars().all()
+                }
+            assert "workspace.exported" in actions
+            assert "workspace.imported" in actions
