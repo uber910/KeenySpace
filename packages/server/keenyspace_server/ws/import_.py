@@ -25,10 +25,41 @@ from keenyspace_server.auth.audit import write_audit
 from keenyspace_server.db.models import Workspace
 from keenyspace_server.fs.blueprint import _write_workspace_config
 from keenyspace_server.observability.metrics import WORKSPACE_IMPORT_TOTAL
+from keenyspace_server.ws.export import EXPORT_SKIP_TOP_LEVEL
 
 log = structlog.get_logger(__name__)
 
 MAX_IMPORT_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
+
+# G-4: symmetric with export. Top-level components that export NEVER emits
+# are rejected on import to prevent operators from smuggling user-state
+# (.obsidian) or backup-territory (logs/) content into a freshly-imported
+# workspace. Aliasing the export constant guarantees the two policies cannot
+# drift again.
+IMPORT_REJECT_TOP_LEVEL_USER_STATE: frozenset[str] = EXPORT_SKIP_TOP_LEVEL
+
+# G-4: operator-smuggle denylist — top-level components that are virtually
+# never legitimate in a workspace and would be confusing or unsafe if an
+# operator pulled them in by accident. Defence-in-depth on top of path-
+# traversal / symlink / control-char guards. Nested instances of these
+# names (e.g. raw/.git/) are NOT rejected — path-traversal / symlink
+# checks already cover the meaningful attack surface for nested entries.
+IMPORT_REJECT_TOP_LEVEL_DENYLIST: frozenset[str] = frozenset(
+    {
+        ".git",
+        ".env",
+        ".envrc",
+        ".htaccess",
+        ".ssh",
+        ".aws",
+        ".DS_Store",
+    }
+)
+
+# Combined top-level reject set used by the per-entry validator.
+_IMPORT_REJECT_TOP_LEVEL: frozenset[str] = (
+    IMPORT_REJECT_TOP_LEVEL_USER_STATE | IMPORT_REJECT_TOP_LEVEL_DENYLIST
+)
 
 _SLUG_RE = re.compile(
     r"^[a-zA-Z0-9][a-zA-Z0-9\-]{0,62}[a-zA-Z0-9]$|^[a-zA-Z0-9]$"
@@ -90,17 +121,22 @@ def _validate_zip_sync(zip_path: Path) -> _ZipValidation:
                     "path_traversal",
                     f"unsafe zip entry: {name!r}",
                 )
+            # G-4 top-level reject: drop entries whose first path component is
+            # canonical user-state (mirror of export EXPORT_SKIP_TOP_LEVEL)
+            # OR operator-smuggle denylist. `.keenyspace` IS permitted (it's
+            # the canonical config dir; export emits .keenyspace/config.yaml).
+            # Nested dotfiles (raw/.gitkeep, _templates/.editorconfig, etc.)
+            # are PERMITTED — path-traversal / symlink / control-char guards
+            # already cover the meaningful attack surface for nested entries.
+            non_empty_parts = [p for p in parts if p not in ("", ".")]
+            if non_empty_parts and non_empty_parts[0] in _IMPORT_REJECT_TOP_LEVEL:
+                raise WorkspaceImportError(
+                    "hidden_entry",
+                    f"entry has rejected top-level component: {name!r}",
+                )
             for part in parts:
                 if part in ("", "."):
                     continue
-                # Allow `.keenyspace` top-level (canonical config dir); reject
-                # all other dot-prefixed components to keep operators from
-                # importing zips that smuggle .htaccess / .env / .git surfaces.
-                if part.startswith(".") and part != ".keenyspace":
-                    raise WorkspaceImportError(
-                        "hidden_entry",
-                        f"entry has hidden component: {name!r}",
-                    )
                 if len(part.encode("utf-8")) > 255:
                     raise WorkspaceImportError(
                         "name_too_long",

@@ -4,7 +4,10 @@ import zipfile
 from pathlib import Path
 
 import pytest
+from keenyspace_server.ws.export import EXPORT_SKIP_TOP_LEVEL
 from keenyspace_server.ws.import_ import (
+    IMPORT_REJECT_TOP_LEVEL_DENYLIST,
+    IMPORT_REJECT_TOP_LEVEL_USER_STATE,
     WorkspaceImportError,
     _validate_zip_sync,
     validate_import_zip,
@@ -93,3 +96,109 @@ async def test_validate_import_zip_async_wrapper(tmp_path: Path) -> None:
     zp = _make_zip(tmp_path, [("index.md", b"# ok")])
     result = await validate_import_zip(zp)
     assert result.total_bytes == 4
+
+
+# --- G-4 symmetric top-level dotfile policy --------------------------------
+
+
+def test_validate_accepts_nested_gitkeep(tmp_path: Path) -> None:
+    zp = _make_zip(tmp_path, [("raw/.gitkeep", b""), ("index.md", b"# x")])
+    result = _validate_zip_sync(zp)
+    assert result.total_bytes >= 3
+
+
+def test_validate_accepts_nested_dotfile_in_any_subdir(tmp_path: Path) -> None:
+    zp = _make_zip(
+        tmp_path,
+        [("_templates/.editorconfig", b"root = true\n"), ("index.md", b"# x")],
+    )
+    result = _validate_zip_sync(zp)
+    assert result.total_bytes > 0
+
+
+def test_validate_accepts_keenyspace_subtree(tmp_path: Path) -> None:
+    zp = _make_zip(
+        tmp_path,
+        [
+            (
+                ".keenyspace/config.yaml",
+                b"uuid: x\nslug: y\nblueprint: default@v0.1\n",
+            ),
+            (".keenyspace/instructions/ingest.md", b"---\nname: ingest\n---\n"),
+            ("index.md", b"# x"),
+        ],
+    )
+    result = _validate_zip_sync(zp)
+    assert result.preserved_blueprint_ref == "default@v0.1"
+
+
+def test_validate_rejects_top_level_obsidian(tmp_path: Path) -> None:
+    zp = _make_zip(
+        tmp_path,
+        [(".obsidian/workspace.json", b"{}"), ("index.md", b"# x")],
+    )
+    with pytest.raises(WorkspaceImportError) as exc:
+        _validate_zip_sync(zp)
+    assert exc.value.code == "hidden_entry"
+
+
+def test_validate_rejects_top_level_logs(tmp_path: Path) -> None:
+    zp = _make_zip(tmp_path, [("logs/.gitkeep", b""), ("index.md", b"# x")])
+    with pytest.raises(WorkspaceImportError) as exc:
+        _validate_zip_sync(zp)
+    assert exc.value.code == "hidden_entry"
+
+
+def test_validate_rejects_top_level_git(tmp_path: Path) -> None:
+    zp = _make_zip(
+        tmp_path,
+        [(".git/HEAD", b"ref: refs/heads/main\n"), ("index.md", b"# x")],
+    )
+    with pytest.raises(WorkspaceImportError) as exc:
+        _validate_zip_sync(zp)
+    assert exc.value.code == "hidden_entry"
+
+
+def test_validate_rejects_top_level_env(tmp_path: Path) -> None:
+    zp = _make_zip(
+        tmp_path,
+        [(".env", b"SECRET=hunter2\n"), ("index.md", b"# x")],
+    )
+    with pytest.raises(WorkspaceImportError) as exc:
+        _validate_zip_sync(zp)
+    assert exc.value.code == "hidden_entry"
+
+
+def test_validate_rejects_top_level_ds_store(tmp_path: Path) -> None:
+    zp = _make_zip(tmp_path, [(".DS_Store", b"Bud1"), ("index.md", b"# x")])
+    with pytest.raises(WorkspaceImportError) as exc:
+        _validate_zip_sync(zp)
+    assert exc.value.code == "hidden_entry"
+
+
+def test_validate_constant_matches_export() -> None:
+    """G-4 symmetry pin: import user-state reject set IS the export skip set."""
+    assert IMPORT_REJECT_TOP_LEVEL_USER_STATE == EXPORT_SKIP_TOP_LEVEL
+
+
+def test_validate_denylist_covers_operator_smuggle_names() -> None:
+    """G-4 denylist pin: top-level operator-smuggle names are rejected."""
+    assert {".git", ".env", ".envrc", ".htaccess", ".ssh", ".aws", ".DS_Store"} <= set(
+        IMPORT_REJECT_TOP_LEVEL_DENYLIST
+    )
+
+
+def test_validate_still_rejects_path_traversal_after_relax(tmp_path: Path) -> None:
+    zp = _make_zip(
+        tmp_path, [("../etc/passwd", b"x"), ("index.md", b"# x")]
+    )
+    with pytest.raises(WorkspaceImportError) as exc:
+        _validate_zip_sync(zp)
+    assert exc.value.code == "path_traversal"
+
+
+def test_validate_still_rejects_symlink_after_relax(tmp_path: Path) -> None:
+    zp = _make_zip_with_symlink(tmp_path)
+    with pytest.raises(WorkspaceImportError) as exc:
+        _validate_zip_sync(zp)
+    assert exc.value.code == "symlink"

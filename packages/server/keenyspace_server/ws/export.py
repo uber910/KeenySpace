@@ -15,6 +15,9 @@ _STREAM_CHUNK_BYTES = 64 * 1024
 
 MAX_EXPORT_UNCOMPRESSED_BYTES = 200 * 1024 * 1024
 
+# G-4: shared with ws/import_.py via direct import. Editing this set updates
+# both export's skip rule and import's top-level user-state reject rule —
+# keeping the export/import dotfile policy symmetric by construction.
 EXPORT_SKIP_TOP_LEVEL: frozenset[str] = frozenset({".obsidian", "logs"})
 
 
