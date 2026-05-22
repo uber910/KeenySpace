@@ -41,7 +41,7 @@ async def export_workspace(
     request: Request,
     session: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> StreamingResponse:
-    user = request.state.user
+    user = request.user
     ws = await _load_workspace(slug, session)
     ws_dir = _resolve_ws_dir(request, ws)
     archived = ws.status == "archived"

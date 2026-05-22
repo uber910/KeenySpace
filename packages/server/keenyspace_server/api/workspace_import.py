@@ -59,7 +59,7 @@ async def import_endpoint(
     # between assignment and the open() below.
     upload_tmp: Path | None = None
     try:
-        user = request.state.user
+        user = request.user
         settings = request.app.state.settings
 
         fs_root: Path = settings.fs.root

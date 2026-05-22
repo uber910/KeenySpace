@@ -45,7 +45,7 @@ async def archive_endpoint(
     request: Request,
     session: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> ArchiveResponse:
-    user = request.state.user
+    user = request.user
     ws = await _load_workspace(slug, session)
     ws_dir = _resolve_ws_dir(request, ws)
     try:
@@ -74,7 +74,7 @@ async def unarchive_endpoint(
     request: Request,
     session: AsyncSession = Depends(get_db),  # noqa: B008
 ) -> ArchiveResponse:
-    user = request.state.user
+    user = request.user
     ws = await _load_workspace(slug, session)
     ws_dir = _resolve_ws_dir(request, ws)
     try:
