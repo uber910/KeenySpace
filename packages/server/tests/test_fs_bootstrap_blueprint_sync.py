@@ -14,7 +14,6 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-
 from keenyspace_server.fs.bootstrap import (
     _merge_blueprint_tree,
     ensure_fs_root_layout,

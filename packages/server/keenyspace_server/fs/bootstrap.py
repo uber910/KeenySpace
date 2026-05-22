@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import shutil
 from pathlib import Path
 
@@ -15,8 +16,8 @@ def ensure_fs_root_layout(
         (fs_root / subdir).mkdir(parents=True, exist_ok=True)
 
     default_target = fs_root / "blueprints" / "default"
+    default_src = server_blueprints_image_dir / "default"
     if not default_target.exists():
-        default_src = server_blueprints_image_dir / "default"
         if default_src.exists():
             shutil.copytree(
                 default_src,
@@ -25,8 +26,57 @@ def ensure_fs_root_layout(
                 dirs_exist_ok=False,
                 ignore_dangling_symlinks=True,
             )
+    elif default_src.exists():
+        # G-3 (Phase 4 UAT): merge new image files into the on-disk blueprint
+        # catalog on EVERY boot. First-boot path above does a full copytree;
+        # this branch only fills in files added by later image upgrades
+        # (e.g. _instructions/ingest.md landed in Plan 04-01 but never reached
+        # existing fs_root volumes because the directory already existed).
+        # Operator-customised files are NEVER overwritten (skip-on-exists).
+        _merge_blueprint_tree(default_src, default_target)
 
     _sweep_stale_tmp(fs_root / ".tmp")
+
+
+def _merge_blueprint_tree(src: Path, dst: Path) -> None:
+    """Copy files present in ``src`` but missing in ``dst``; never overwrite.
+
+    Best-effort: an OSError on an individual file logs a warning and continues
+    (same shape as ``_sweep_stale_tmp``). Symlinks in ``src`` are skipped.
+    """
+    for src_root, dirnames, filenames in os.walk(src, followlinks=False):
+        rel_root = Path(src_root).relative_to(src)
+        # Skip symlinked sub-directories defence-in-depth (os.walk followlinks=False
+        # already refuses to descend, but pruning here avoids touching the entries).
+        dirnames[:] = [
+            d for d in dirnames if not (Path(src_root) / d).is_symlink()
+        ]
+        dst_root = dst / rel_root
+        try:
+            dst_root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            log.warning(
+                "fs.bootstrap.blueprint_merge_mkdir_failed",
+                path=str(dst_root),
+                error=str(exc),
+            )
+            continue
+        for filename in filenames:
+            src_file = Path(src_root) / filename
+            dst_file = dst_root / filename
+            if src_file.is_symlink():
+                continue
+            if dst_file.exists():
+                continue
+            try:
+                shutil.copy2(src_file, dst_file)
+            except OSError as exc:
+                log.warning(
+                    "fs.bootstrap.blueprint_merge_copy_failed",
+                    src=str(src_file),
+                    dst=str(dst_file),
+                    error=str(exc),
+                )
 
 
 def _sweep_stale_tmp(tmp_root: Path) -> None:
