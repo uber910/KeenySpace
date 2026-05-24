@@ -90,6 +90,12 @@ def _pg_dump_argv(db_url: str) -> list[str]:
         "pg_dump",
         "--no-owner",
         "--no-acl",
+        # --clean --if-exists emits "DROP TABLE IF EXISTS ..." before every
+        # CREATE so psql can replay against a target whose schema already
+        # exists (Alembic ran during server boot). D-17 wipes ROWS via DELETE,
+        # not tables — without --clean the replay collides on CREATE TABLE.
+        "--clean",
+        "--if-exists",
     ]
     for table in PG_TABLES_DUMPED:
         argv.append(f"--table={table}")
