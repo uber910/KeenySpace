@@ -165,20 +165,32 @@ async def admin_backup(
         pg_dump_path = tmp_dir / "pg_dump.sql"
         total_bytes = 0
         try:
+            # WR-02: stream pg_dump stdout to disk in chunks instead of
+            # buffering the whole dump into a single bytes object. A
+            # multi-GB production database would otherwise pin O(dump_size)
+            # RSS in the worker process and risk OOM kills mid-backup.
             proc = await asyncio.create_subprocess_exec(
                 *_pg_dump_argv(db_url),
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 env=_pg_env(db_url),
             )
-            pg_bytes, pg_err = await proc.communicate()
+            assert proc.stdout is not None
+            assert proc.stderr is not None
+            with pg_dump_path.open("wb") as pg_fp:
+                while True:
+                    pg_chunk = await proc.stdout.read(UPLOAD_CHUNK_BYTES)
+                    if not pg_chunk:
+                        break
+                    pg_fp.write(pg_chunk)
+            pg_err = await proc.stderr.read()
+            await proc.wait()
             if proc.returncode != 0:
                 log.error(
                     "admin.backup.pg_dump_failed",
                     stderr=pg_err.decode(errors="replace"),
                 )
                 raise HTTPException(500, {"error": "pg_dump_failed"})
-            pg_dump_path.write_bytes(pg_bytes)
 
             workspaces_dir = fs_root / "workspaces"
             ws_uuids = (
@@ -433,6 +445,10 @@ async def admin_restore(
             ADMIN_RESTORE_TOTAL.labels(outcome="missing_pg_dump").inc()
             raise HTTPException(422, {"error": "missing_pg_dump"})
 
+        # WR-02: stream the extracted pg_dump file into psql's stdin in
+        # chunks rather than loading the entire dump into a single bytes
+        # buffer before piping. For a multi-GB dump the buffered variant
+        # holds two copies (file bytes + subprocess input) in RSS.
         psql = await asyncio.create_subprocess_exec(
             *_psql_argv(db_url),
             stdin=asyncio.subprocess.PIPE,
@@ -440,7 +456,18 @@ async def admin_restore(
             stderr=asyncio.subprocess.PIPE,
             env=_pg_env(db_url),
         )
-        _psql_out, psql_err = await psql.communicate(input=pg_dump_path.read_bytes())
+        assert psql.stdin is not None
+        assert psql.stderr is not None
+        with pg_dump_path.open("rb") as dump_fp:
+            while True:
+                dump_chunk = dump_fp.read(UPLOAD_CHUNK_BYTES)
+                if not dump_chunk:
+                    break
+                psql.stdin.write(dump_chunk)
+                await psql.stdin.drain()
+        psql.stdin.close()
+        psql_err = await psql.stderr.read()
+        await psql.wait()
         if psql.returncode != 0:
             ADMIN_RESTORE_TOTAL.labels(outcome="psql_restore_failed").inc()
             log.error(
