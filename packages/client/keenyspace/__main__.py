@@ -84,9 +84,15 @@ def _root_callback() -> None:
     from keenyspace.auth import _validate_auth_file_mode
 
     _validate_auth_file_mode()
-    # Register `workspace` subcommands lazily so cold-boot of `--help` stays
-    # under the 600ms target — the module body only adds @workspace_app.command
-    # decorators and lightweight imports.
+
+
+# WR-04: register `workspace` subcommands only when a `workspace ...` command
+# is actually invoked. Importing keenyspace.cli.workspace from the Typer root
+# callback paid the ~30-80ms `yaml` + `rich` import cost on every hook call
+# (e.g. PostToolUse — fires on every Claude Code tool invocation), and hook
+# codepaths never touch the workspace subcommand surface.
+@workspace_app.callback()
+def _workspace_callback() -> None:
     import keenyspace.cli.workspace  # noqa: F401
 
 
