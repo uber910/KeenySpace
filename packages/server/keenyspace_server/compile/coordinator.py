@@ -15,7 +15,7 @@ from sqlalchemy import select, update
 
 from keenyspace_server.compile.agent import run_compile_agent
 from keenyspace_server.compile.hashing import hash_plan
-from keenyspace_server.compile.loop_detector import LoopDetector
+from keenyspace_shared.loop_detector import LoopDetector
 from keenyspace_server.compile.models import (
     CompileDeps,
     CompileRunResult,

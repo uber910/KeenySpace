@@ -8,7 +8,7 @@ import structlog
 from pydantic_ai import Agent, ModelRetry, RunContext, UsageLimits
 from pydantic_ai.settings import ModelSettings
 
-from keenyspace_server.compile.loop_detector import LoopDetector
+from keenyspace_shared.loop_detector import LoopDetector
 from keenyspace_server.compile.models import CompileDeps, CompilePlan
 from keenyspace_server.fs.path_safety import UnsafePath, open_workspace_page
 
