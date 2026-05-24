@@ -311,7 +311,15 @@ async def test_get_instructions_dunder_blocked_raises(app, pg_url) -> None:
         )
         sandbox_path.parent.mkdir(parents=True, exist_ok=True)
         sandbox_path.write_text(
-            "---\ntool_whitelist: []\nsteps: []\n---\n{{ workspace.__class__ }}\n"
+            "---\n"
+            "tool_whitelist: []\n"
+            "steps: []\n"
+            "budgets:\n"
+            "  max_steps: 10\n"
+            "  max_tokens: 10000\n"
+            "  max_seconds: 60\n"
+            "---\n"
+            "{{ workspace.__class__ }}\n"
         )
         async with _make_fastmcp_client(app, plaintext) as mcp_client:
             with pytest.raises(Exception, match="instructions_template_error"):

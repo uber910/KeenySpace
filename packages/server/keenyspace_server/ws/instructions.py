@@ -8,7 +8,8 @@ import jinja2
 import structlog
 from jinja2.exceptions import SecurityError
 from jinja2.sandbox import SandboxedEnvironment
-from keenyspace_shared.mcp_contracts import Instructions
+from keenyspace_shared.mcp_contracts import Budgets, Instructions
+from pydantic import ValidationError
 
 from keenyspace_server.mcp.tools import _split_frontmatter
 
@@ -142,6 +143,16 @@ async def load_and_render_instructions(
     if model_raw is not None and not isinstance(model_raw, str):
         raise InstructionTemplateError("frontmatter.model must be a string or null")
 
+    budgets_raw = frontmatter.get("budgets")
+    if not isinstance(budgets_raw, dict):
+        raise InstructionTemplateError(
+            "frontmatter.budgets must be a dict with max_steps, max_tokens, max_seconds"
+        )
+    try:
+        budgets = Budgets(**budgets_raw)
+    except ValidationError as exc:
+        raise InstructionTemplateError(f"invalid budgets: {exc}") from exc
+
     ctx: dict[str, Any] = {"workspace": workspace_meta, "context": context}
     rendered_body = _truncate(await _render_async(body, ctx), label="prompt")
     rendered_steps = [
@@ -154,4 +165,5 @@ async def load_and_render_instructions(
         tool_whitelist=list(tool_whitelist),
         steps=rendered_steps,
         model=model_raw,
+        budgets=budgets,
     )
