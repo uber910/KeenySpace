@@ -73,10 +73,22 @@ async def mock_daemon(
 
     Tests can await envelopes via the returned ``received`` list. Cleans up the
     socket file in teardown.
+
+    Note: resolves the socket path via the paths module so that callers using
+    the ``short_xdg_state`` fixture pick up the /tmp-based path (AF_UNIX cap on
+    macOS makes pytest tmp_path too long).
     """
 
     received: list[dict[str, Any]] = []
-    sock_path = temp_config_dir["state_dir"] / "daemon.sock"
+    # Reload paths so XDG_STATE_HOME override (e.g. from short_xdg_state) flows in.
+    import importlib
+
+    import keenyspace.paths as paths_mod
+
+    importlib.reload(paths_mod)
+    sock_path = paths_mod.DAEMON_SOCK
+    sock_path.parent.mkdir(parents=True, exist_ok=True)
+    sock_path.parent.chmod(0o700)
 
     async def handler(
         reader: asyncio.StreamReader, writer: asyncio.StreamWriter

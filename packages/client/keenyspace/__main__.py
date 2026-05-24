@@ -20,6 +20,58 @@ app.add_typer(hook_app, hidden=True)
 from keenyspace.daemon.cli import daemon_app  # noqa: E402
 
 app.add_typer(daemon_app)
+
+
+@hook_app.command("post-tool")
+def hook_post_tool() -> None:
+    """Claude Code PostToolUse event: forward to daemon as fire-and-forget JSONL."""
+    import asyncio
+
+    from keenyspace.hooks.handlers import handle_post_tool
+
+    asyncio.run(handle_post_tool())
+
+
+@hook_app.command("session-start")
+def hook_session_start() -> None:
+    """Claude Code SessionStart event; source=compact triggers context re-injection (F-09)."""
+    import asyncio
+
+    from keenyspace.hooks.handlers import handle_session_start
+
+    asyncio.run(handle_session_start())
+
+
+@hook_app.command("session-end")
+def hook_session_end() -> None:
+    """Claude Code SessionEnd event: fire-and-forget audit."""
+    import asyncio
+
+    from keenyspace.hooks.handlers import handle_session_end
+
+    asyncio.run(handle_session_end())
+
+
+@hook_app.command("pre-compact")
+def hook_pre_compact() -> None:
+    """Claude Code PreCompact event: fire-and-forget audit."""
+    import asyncio
+
+    from keenyspace.hooks.handlers import handle_pre_compact
+
+    asyncio.run(handle_pre_compact())
+
+
+@hook_app.command("post-compact")
+def hook_post_compact() -> None:
+    """Claude Code PostCompact event: fire-and-forget audit (no stdout injection per F-09)."""
+    import asyncio
+
+    from keenyspace.hooks.handlers import handle_post_compact
+
+    asyncio.run(handle_post_compact())
+
+
 # --- end 05-05 ---
 
 
