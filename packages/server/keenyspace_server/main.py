@@ -11,8 +11,8 @@ from fastmcp.utilities.lifespan import combine_lifespans
 from starlette.middleware.authentication import AuthenticationMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
-from .api import compile as compile_router
 from .api import (
+    admin,
     health,
     logs,
     pages,
@@ -23,6 +23,7 @@ from .api import (
     workspace_manifest,
     workspaces,
 )
+from .api import compile as compile_router
 from .auth.api_keys import ApiKeyService
 from .auth.composite import CompositeAuthBackend
 from .auth.middleware import on_auth_error
@@ -195,6 +196,11 @@ def build_app() -> FastAPI:
     app.include_router(
         api_keys_router.router,
         prefix="/v1/api/auth/api-keys",
+        dependencies=protected_deps,
+    )
+    app.include_router(
+        admin.router,
+        prefix="/v1/admin",
         dependencies=protected_deps,
     )
     app.include_router(auth_router.router, prefix="/v1/api/auth")
