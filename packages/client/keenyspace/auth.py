@@ -46,7 +46,19 @@ def read_auth(path: Path = AUTH_JSON) -> dict[str, Any]:
     _validate_auth_file_mode(path)
     if not path.exists():
         return {}
-    parsed = json.loads(path.read_text())
+    # WR-05: a corrupted or truncated auth.json (power-loss mid-write,
+    # disk-full during atomic replace, manual edit) must NOT propagate a
+    # raw JSONDecodeError stack trace out of every CLI command that
+    # touches auth state (status, doctor, ingest, query, lint, compile,
+    # backup, restore, daemon/post_compact). Surface a clean error
+    # pointing the user at `keenyspace login` to refresh.
+    try:
+        parsed = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(
+            f"Error: {path} is unreadable or corrupt ({exc}). "
+            f"Run `keenyspace login` to refresh."
+        ) from exc
     if not isinstance(parsed, dict):
         return {}
     return parsed
