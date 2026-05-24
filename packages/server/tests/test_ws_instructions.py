@@ -4,10 +4,17 @@ from pathlib import Path
 
 import pytest
 
+_DEFAULT_BUDGETS_FM = (
+    "budgets:\n  max_steps: 10\n  max_tokens: 10000\n  max_seconds: 60"
+)
+
 
 def _write_instruction(path: Path, frontmatter: str, body: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"---\n{frontmatter}\n---\n{body}")
+    fm = frontmatter
+    if "budgets:" not in fm:
+        fm = f"{fm}\n{_DEFAULT_BUDGETS_FM}"
+    path.write_text(f"---\n{fm}\n---\n{body}")
 
 
 @pytest.mark.asyncio

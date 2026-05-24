@@ -1,6 +1,10 @@
 ---
 tool_whitelist: [read_page, append_log, search_workspace]
 model: null
+budgets:
+  max_steps: 20
+  max_tokens: 50000
+  max_seconds: 120
 steps:
   - "Read source content from {{ context.source_path }}"
   - "Extract knowledge fragments and summarise them"

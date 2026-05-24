@@ -86,6 +86,28 @@ WORKSPACE_IMPORT_TOTAL = Counter(
 )
 
 
+ADMIN_BACKUP_TOTAL = Counter(
+    "keenyspace_admin_backup_total",
+    "Total /v1/admin/backup invocations",
+)
+
+ADMIN_BACKUP_BYTES = Counter(
+    "keenyspace_admin_backup_bytes_total",
+    "Total bytes streamed by /v1/admin/backup",
+)
+
+ADMIN_RESTORE_TOTAL = Counter(
+    "keenyspace_admin_restore_total",
+    "Total /v1/admin/restore invocations",
+    ["outcome"],
+)
+
+ADMIN_RESTORE_WIPED_TOTAL = Counter(
+    "keenyspace_admin_restore_wiped_total",
+    "Total /v1/admin/restore --force wipes",
+)
+
+
 def build_instrumentator() -> Instrumentator:
     return Instrumentator(
         should_group_status_codes=False,

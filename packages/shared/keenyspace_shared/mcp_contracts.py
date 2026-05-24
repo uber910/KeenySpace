@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AppendLogRequest(BaseModel):
@@ -73,11 +73,42 @@ class ListBlueprintsResponse(BaseModel):
     blueprints: list[BlueprintInfo]
 
 
+class Budgets(BaseModel):
+    max_steps: int
+    max_tokens: int
+    max_seconds: int
+
+
 class Instructions(BaseModel):
     prompt: str
     tool_whitelist: list[str]
     steps: list[str]
     model: str | None = None
+    budgets: Budgets
+
+
+class PostCompactInjection(BaseModel):
+    base_layer: str
+    selected_pages: list[str]
+    assembled_text: str
+
+
+class BackupManifest(BaseModel):
+    version: int
+    keenyspace_version: str
+    schema_version: int
+    alembic_head: str
+    created_at: datetime
+    created_by: str
+    fs_root_size_bytes: int
+    workspaces: dict[str, Any]
+    blueprints: dict[str, Any]
+    pg_tables_dumped: list[str]
+
+
+class RestoreError(BaseModel):
+    error: str
+    detail: dict[str, Any] = Field(default_factory=dict)
 
 
 class WorkspaceImportResponse(BaseModel):
