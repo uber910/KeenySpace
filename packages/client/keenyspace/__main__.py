@@ -8,6 +8,8 @@ asserts `keenyspace --help` exits under 600ms.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import typer
 
 app = typer.Typer(no_args_is_help=True, rich_markup_mode="rich", add_completion=False)
@@ -74,6 +76,56 @@ def status_cmd() -> None:
     from keenyspace.cli.status import run_status
 
     asyncio.run(run_status())
+
+
+# --- 05-07 backup/restore/doctor commands ---
+@app.command(name="backup")
+def backup_cmd(
+    output: Path = typer.Option(  # noqa: B008
+        None,
+        "--output",
+        "-o",
+        help="Output path (default: ./keenyspace-backup-<iso>.tar.gz)",
+    ),
+) -> None:
+    """Stream a full backup tarball from the server."""
+    import asyncio
+
+    from keenyspace.cli.backup import run_backup
+
+    asyncio.run(run_backup(output))
+
+
+@app.command(name="restore")
+def restore_cmd(
+    archive: Path = typer.Argument(..., exists=True),  # noqa: B008
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Wipe existing data + skip version/schema checks (irreversible).",
+    ),
+) -> None:
+    """Restore from a keenyspace backup tarball."""
+    import asyncio
+
+    from keenyspace.cli.restore import run_restore
+
+    asyncio.run(run_restore(archive, force=force))
+
+
+@app.command(name="doctor")
+def doctor_cmd(
+    as_json: bool = typer.Option(
+        False, "--json", help="Machine-readable JSON output instead of a table."
+    ),
+) -> None:
+    """Run read-only diagnostics (server, auth, daemon, filesystem)."""
+    import asyncio
+
+    from keenyspace.cli.doctor import run_doctor
+
+    asyncio.run(run_doctor(as_json=as_json))
+# --- end 05-07 ---
 
 
 if __name__ == "__main__":
