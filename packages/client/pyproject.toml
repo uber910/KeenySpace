@@ -14,6 +14,24 @@ dependencies = [
     "rich>=14.0",
     "pyyaml>=6.0.2",
     "keenyspace-shared",
+    "pydantic-ai-slim[anthropic,openai]>=1.93,<2",
+    "instructor>=1.14,<2",
+    "pydantic-settings>=2.6",
+    "structlog>=24",
+    "anthropic>=0.40",
+    "aiofiles>=24",
+    "semver>=3",
+]
+
+[project.scripts]
+keenyspace = "keenyspace.__main__:app"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+    "pytest-httpserver>=1.1",
+    "freezegun>=1.5",
 ]
 
 [tool.uv.build-backend]
