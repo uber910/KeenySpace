@@ -25,7 +25,21 @@ def increment(kind: str) -> None:
         return
     try:
         DROPPED_JSON.parent.mkdir(parents=True, exist_ok=True)
-        with open(DROPPED_JSON, "a+") as f:
+        # WR-09: pre-create with mode 0o600 if the file doesn't exist.
+        # `open(... "a+")` on first install honours the process umask
+        # (typically 0o644), exposing counter contents to other users
+        # for the brief window before the atomic-replace finishes. The
+        # rest of the security-by-default surface (auth.json) is 0o600
+        # from creation; preserve that posture here.
+        if not DROPPED_JSON.exists():
+            with contextlib.suppress(FileExistsError):
+                fd = os.open(
+                    DROPPED_JSON,
+                    os.O_WRONLY | os.O_CREAT | os.O_EXCL,
+                    0o600,
+                )
+                os.close(fd)
+        with open(DROPPED_JSON, "r+") as f:
             try:
                 fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError:
