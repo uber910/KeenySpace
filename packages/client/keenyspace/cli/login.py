@@ -102,7 +102,7 @@ async def run_login(server_url: str | None) -> None:
         console.print(f"[bold]{verification_uri_complete}[/bold]")
         console.print(f"User code: [yellow]{user_code}[/yellow]")
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         deadline = loop.time() + expires_in
         while loop.time() < deadline:
             await asyncio.sleep(interval)

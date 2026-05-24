@@ -77,7 +77,7 @@ async def serve() -> None:
     log.info("daemon.started", sock=str(DAEMON_SOCK), pid=os.getpid())
 
     stop_event = asyncio.Event()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     for sig in (signal.SIGTERM, signal.SIGINT):
         # Windows / restricted runtime: signal handlers may be unavailable;
         # the daemon is out of scope on those platforms per CONTEXT.md.

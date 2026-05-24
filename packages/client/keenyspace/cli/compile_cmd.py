@@ -48,7 +48,7 @@ async def run_compile_cmd(
     )
     if not wait:
         return
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     deadline = loop.time() + wait_timeout
     while True:
         payload = await call_compile_status(
