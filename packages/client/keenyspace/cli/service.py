@@ -38,10 +38,13 @@ def _read_template(name: str) -> str:
 
 
 def _install_macos() -> None:
+    # WR-06: Path.home() is resilient against unset HOME (chroot, restricted
+    # shells, custom PAM) — os.environ["HOME"] would raise KeyError. The rest
+    # of this codebase already uses Path.home() in paths.py.
     plist = (
         _read_template("launchd_com.keenyspace.daemon.plist")
         .replace("__KEENYSPACE_BIN__", str(_resolve_binary()))
-        .replace("__HOME__", os.environ["HOME"])
+        .replace("__HOME__", str(Path.home()))
     )
     dest = Path.home() / "Library" / "LaunchAgents" / f"{LAUNCHD_LABEL}.plist"
     dest.parent.mkdir(parents=True, exist_ok=True)
