@@ -1,0 +1,56 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "compact",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "keenyspace hook session-start",
+            "timeout": 30,
+            "statusMessage": "Re-injecting KeenySpace workspace context after compaction"
+          }
+        ]
+      },
+      {
+        "matcher": "startup|resume|clear",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "keenyspace hook session-start",
+            "async": true
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {"type": "command", "command": "keenyspace hook session-end", "async": true}
+        ]
+      }
+    ],
+    "PreCompact": [
+      {
+        "hooks": [
+          {"type": "command", "command": "keenyspace hook pre-compact", "async": true}
+        ]
+      }
+    ],
+    "PostCompact": [
+      {
+        "hooks": [
+          {"type": "command", "command": "keenyspace hook post-compact", "async": true}
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|mcp__keenyspace__.*",
+        "hooks": [
+          {"type": "command", "command": "keenyspace hook post-tool", "async": true}
+        ]
+      }
+    ]
+  }
+}

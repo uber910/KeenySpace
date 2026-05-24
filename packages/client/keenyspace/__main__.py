@@ -17,9 +17,11 @@ app.add_typer(workspace_app)
 app.add_typer(hook_app, hidden=True)
 
 # --- 05-05 daemon/hook/service registration ---
+from keenyspace.cli.service import service_app  # noqa: E402
 from keenyspace.daemon.cli import daemon_app  # noqa: E402
 
 app.add_typer(daemon_app)
+app.add_typer(service_app)
 
 
 @hook_app.command("post-tool")
