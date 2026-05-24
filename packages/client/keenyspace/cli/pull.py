@@ -12,6 +12,7 @@ Workflow:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 from datetime import UTC, datetime
@@ -87,6 +88,13 @@ async def run_pull(
             render_diff(diff, target_path, lambda rel: preloaded_server[rel])
 
         target_path.mkdir(parents=True, exist_ok=True)
+        # WR-03: record the sha256 of the bytes we actually wrote to disk,
+        # not the manifest hash captured at the start of the pull. If
+        # server canon mutates between manifest fetch and per-file fetch
+        # (compile pass produces fresh content for one of the files), the
+        # local-state.json must reflect the bytes actually on disk so the
+        # next `pull` is not falsely reported as dirty.
+        actual_hashes: dict[str, str] = {}
         for rel, _server_hash in server_files.items():
             if rel in preloaded_server:
                 payload_bytes = preloaded_server[rel]
@@ -95,6 +103,7 @@ async def run_pull(
             dest = target_path / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             write_atomic(dest, payload_bytes)
+            actual_hashes[rel] = hashlib.sha256(payload_bytes).hexdigest()
 
         for rel in set(local_files) - set(server_files):
             (target_path / rel).unlink(missing_ok=True)
@@ -110,7 +119,7 @@ async def run_pull(
             "workspace_slug": slug,
             "server_canon_at": server_doc.get("server_canon_at"),
             "last_pull_ts": datetime.now(UTC).isoformat(),
-            "files": server_files,
+            "files": actual_hashes,
         }
         write_atomic_secret(
             local_state_path, json.dumps(new_manifest, indent=2).encode()
