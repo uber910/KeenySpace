@@ -1,5 +1,6 @@
 """OIDC HTTP endpoints — D-01..D-07 + D-16.
 
+GET  /v1/api/auth/discovery — public; advertises the IdP issuer to the CLI
 GET  /v1/api/auth/login    — public; Authlib authorize_redirect → IdP
 GET  /v1/api/auth/callback — public; code exchange; user-upsert; set ks_at+ks_rt+ks_idt
 POST /v1/api/auth/refresh  — authed (via ks_rt cookie); rotate cookies
@@ -91,6 +92,16 @@ def _clear_auth_cookies(response: Response, settings: Any) -> None:
     response.delete_cookie("ks_at", path=settings.auth.cookie_path_ks_at)
     response.delete_cookie("ks_rt", path=settings.auth.cookie_path_ks_rt)
     response.delete_cookie("ks_idt", path="/v1/api/auth/logout")
+
+
+@router.get("/discovery")
+async def discovery(request: Request) -> JSONResponse:
+    # Public IdP-discovery shim. `keenyspace login` hits this first to learn the
+    # Authentik issuer; without it the operator must export
+    # KEENYSPACE_AUTHENTIK_ISSUER by hand. The CLI runs the device-code flow
+    # directly against the returned issuer — the server is not in that path.
+    settings = _settings(request)
+    return JSONResponse({"issuer": settings.auth.oidc_issuer_url.rstrip("/")})
 
 
 @router.get("/login")
