@@ -31,7 +31,7 @@ def build_oauth(settings: Settings) -> OAuth:
         client_id=settings.auth.oidc_client_id,
         client_secret=settings.auth.oidc_client_secret,
         server_metadata_url=(
-            f"{settings.auth.oidc_issuer_url.rstrip('/')}/.well-known/openid-configuration"
+            f"{settings.auth.metadata_issuer_url.rstrip('/')}/.well-known/openid-configuration"
         ),
         client_kwargs={
             "scope": "openid profile email groups",

@@ -36,10 +36,22 @@ class AuthSettings(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     oidc_issuer_url: str
+    # Back-channel issuer the server uses to fetch OIDC discovery + JWKS. When
+    # unset it equals oidc_issuer_url. Set it separately for split-horizon dev:
+    # the host CLI + token `iss` use the public oidc_issuer_url
+    # (e.g. http://localhost:9000/...) while the server, living in a container,
+    # reaches the IdP at http://authentik:9000/.... JWKS keys are
+    # host-independent, so validating a public-issuer token against
+    # internally-fetched keys is sound.
+    oidc_internal_issuer_url: str | None = None
     oidc_client_id: str
     oidc_client_secret: str
     oidc_redirect_uri: str
     oidc_post_logout_redirect_uri: str
+
+    @property
+    def metadata_issuer_url(self) -> str:
+        return self.oidc_internal_issuer_url or self.oidc_issuer_url
 
     session_secret_key: str
     cookie_path_ks_at: str = "/v1"
