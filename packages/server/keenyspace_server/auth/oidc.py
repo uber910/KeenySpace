@@ -92,7 +92,6 @@ class OidcClient:
 
         registry = JWTClaimsRegistry(
             leeway=LEEWAY_SECONDS,
-            iss={"essential": True, "value": self._issuer},
             aud={"essential": True, "value": self._client_id},
             exp={"essential": True},
             iat={"essential": True},
@@ -102,6 +101,15 @@ class OidcClient:
         except JoseError:
             return None
         except Exception:
+            return None
+
+        # Authentik per_provider issuer_mode mints `iss` with a trailing slash
+        # (http://host/application/o/<slug>/); JWTClaimsRegistry does an exact-value
+        # match and would reject it. Normalize one side and compare manually so the
+        # check is IdP-agnostic (Authentik trailing-slash, Keycloak/Auth0 no-slash).
+        iss_claim = decoded.claims.get("iss")
+        if not isinstance(iss_claim, str) or iss_claim.rstrip("/") != self._issuer:
+            log.warning("auth.token.iss_mismatch", expected=self._issuer, got=iss_claim)
             return None
 
         if conn is not None and self.is_near_expiry(
