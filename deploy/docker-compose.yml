@@ -10,7 +10,13 @@ services:
       KEENYSPACE_FS__ROOT: /var/lib/keenyspace
       # OIDC contract — Authentik wired in this branch (DEP-06 pulled forward for Phase 6 dogfood).
       # client_id MUST match the CLI device-flow client (keenyspace-cli) so token aud validates.
-      KEENYSPACE_AUTH__OIDC_ISSUER_URL: http://authentik:9000/application/o/keenyspace/
+      # Split-horizon issuer: clients + token `iss` use the public URL (localhost:9000 from
+      # the host); the server fetches OIDC discovery + JWKS over compose DNS at authentik:9000.
+      # JWKS keys are host-independent so internally-fetched keys validate publicly-issued
+      # tokens. Removes the /etc/hosts dev hack for dogfood login.
+      # See Phase 3.1 D-24 (split-horizon issuer activation).
+      KEENYSPACE_AUTH__OIDC_ISSUER_URL: http://localhost:9000/application/o/keenyspace/
+      KEENYSPACE_AUTH__OIDC_INTERNAL_ISSUER_URL: http://authentik:9000/application/o/keenyspace/
       KEENYSPACE_AUTH__OIDC_CLIENT_ID: keenyspace-cli
       KEENYSPACE_AUTH__OIDC_CLIENT_SECRET: client-secret-replace-me
       KEENYSPACE_AUTH__OIDC_REDIRECT_URI: http://localhost:8000/v1/api/auth/callback
