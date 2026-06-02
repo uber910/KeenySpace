@@ -5,8 +5,11 @@
 # They MUST NOT appear in the production blueprint (keenyspace.yaml).
 # grep -c ks-test-svc deploy/authentik/blueprints/keenyspace.yaml must return 0.
 #
-# The test seed is mounted alongside keenyspace.yaml in docker-compose.authentik-test.yml
-# and is applied only when running the real_idp testcontainers lane.
+# This file lives in deploy/authentik/blueprints-test/ — a directory the production
+# compose (docker-compose.yml) does NOT mount. It is mounted into Authentik ONLY by
+# docker-compose.authentik-test.yml (the real_idp testcontainers lane). A plain
+# `docker compose up` therefore never provisions this service account, so the test
+# credential cannot leak into a dogfood/production deployment (security T-03.1-06).
 version: 1
 metadata:
   name: keenyspace-test-seed

@@ -8,10 +8,14 @@
 #   - Pins Authentik host port to FIXED 9000:9000. The test's static base_url
 #     "http://localhost:9000" depends on this binding. A random mapped port would
 #     change the per_provider token iss and break the D-22 trailing-slash assertion.
-#   - Mounts the test seed blueprint (keenyspace-test.yaml) alongside the production
-#     blueprint so Authentik-worker provisions the test service account on startup.
-#   - Test-only credentials live ONLY here and in keenyspace-test.yaml, NEVER in
-#     the production blueprint keenyspace.yaml (security T-03.1-06).
+#   - Mounts the test seed blueprint from ./authentik/blueprints-test/ at a SEPARATE
+#     target (/blueprints/test-seed) so Authentik provisions the test service account
+#     ONLY in this lane. The production compose (docker-compose.yml) mounts only
+#     ./authentik/blueprints, NOT blueprints-test/ — so a plain `docker compose up`
+#     never sees the test seed. This is real directory isolation, not isolation by
+#     filename inside a shared mount (security T-03.1-06).
+#   - Test-only credentials live ONLY in ./authentik/blueprints-test/keenyspace-test.yaml
+#     and this override, NEVER in the production blueprint keenyspace.yaml.
 services:
   keenyspace:
     profiles: ["disabled"]
@@ -27,6 +31,7 @@ services:
       - authentik-media:/media
       - authentik-templates:/templates
       - ./authentik/blueprints:/blueprints/custom:ro
+      - ./authentik/blueprints-test:/blueprints/test-seed:ro
 
   authentik-worker:
     volumes:
@@ -34,3 +39,4 @@ services:
       - authentik-templates:/templates
       - authentik-certs:/certs
       - ./authentik/blueprints:/blueprints/custom:ro
+      - ./authentik/blueprints-test:/blueprints/test-seed:ro
