@@ -44,6 +44,7 @@ dev = [
     "pytest-httpx>=0.35",
     "pytest-httpserver>=1.1,<2.0",
     "freezegun>=1.5,<2.0",
+    "testcontainers>=4.14,<5.0",
 ]
 
 [project.scripts]
@@ -71,4 +72,8 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "-m 'not real_idp'"
+markers = [
+    "real_idp: requires a live Authentik instance via testcontainers; slow (~90s startup)",
+]
 

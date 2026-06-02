@@ -1,0 +1,36 @@
+# Test-only compose override for the real_idp testcontainers e2e lane (D-23).
+#
+# Applied via DockerCompose(compose_file_name=["docker-compose.yml",
+#   "docker-compose.authentik-test.yml"]) in test_real_authentik_e2e.py.
+#
+# Contract:
+#   - Disables keenyspace + postgres (KeenySpace runs in-process via OidcClient direct call).
+#   - Pins Authentik host port to FIXED 9000:9000. The test's static base_url
+#     "http://localhost:9000" depends on this binding. A random mapped port would
+#     change the per_provider token iss and break the D-22 trailing-slash assertion.
+#   - Mounts the test seed blueprint (keenyspace-test.yaml) alongside the production
+#     blueprint so Authentik-worker provisions the test service account on startup.
+#   - Test-only credentials live ONLY here and in keenyspace-test.yaml, NEVER in
+#     the production blueprint keenyspace.yaml (security T-03.1-06).
+services:
+  keenyspace:
+    profiles: ["disabled"]
+
+  postgres:
+    profiles: ["disabled"]
+
+  authentik:
+    ports:
+      - "9000:9000"
+      - "9443:9443"
+    volumes:
+      - authentik-media:/media
+      - authentik-templates:/templates
+      - ./authentik/blueprints:/blueprints/custom:ro
+
+  authentik-worker:
+    volumes:
+      - authentik-media:/media
+      - authentik-templates:/templates
+      - authentik-certs:/certs
+      - ./authentik/blueprints:/blueprints/custom:ro

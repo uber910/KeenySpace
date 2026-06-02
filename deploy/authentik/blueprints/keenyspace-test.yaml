@@ -1,0 +1,33 @@
+# Test-only Authentik blueprint — seeds a service account + app password for the
+# testcontainers real_idp e2e test (D-23).
+#
+# SECURITY: These credentials are test-only placeholders (clearly marked values).
+# They MUST NOT appear in the production blueprint (keenyspace.yaml).
+# grep -c ks-test-svc deploy/authentik/blueprints/keenyspace.yaml must return 0.
+#
+# The test seed is mounted alongside keenyspace.yaml in docker-compose.authentik-test.yml
+# and is applied only when running the real_idp testcontainers lane.
+version: 1
+metadata:
+  name: keenyspace-test-seed
+  labels:
+    blueprints.goauthentik.io/instance: keenyspace-test-seed
+entries:
+  - model: authentik_core.user
+    id: ks-test-user
+    identifiers:
+      username: ks-test-svc
+    attrs:
+      name: KeenySpace Test Service Account
+      type: service_account
+      is_active: true
+
+  - model: authentik_core.token
+    id: ks-test-token
+    identifiers:
+      identifier: ks-test-svc-apppassword
+    attrs:
+      user: !KeyOf ks-test-user
+      intent: app_password
+      key: ks-test-app-password-known-value-32chars
+      expiring: false
