@@ -61,6 +61,31 @@ async def _discover_authentik_issuer(
     )
 
 
+async def _discover_device_endpoints(
+    client: httpx.AsyncClient, issuer: str
+) -> tuple[str, str]:
+    """Return (device_authorization_endpoint, token_endpoint) from the IdP's
+    OIDC discovery document.
+
+    These endpoints must be READ from the discovery doc, not constructed by
+    appending to the issuer: Authentik serves the per-application issuer at
+    ``/application/o/<slug>`` but exposes device/token at the host root
+    (``/application/o/device/``, ``/application/o/token/``). Appending the
+    path to the issuer doubles it and yields a 405.
+    """
+    resp = await client.get(f"{issuer}/.well-known/openid-configuration")
+    resp.raise_for_status()
+    data = resp.json()
+    device_endpoint = data.get("device_authorization_endpoint")
+    token_endpoint = data.get("token_endpoint")
+    if not isinstance(device_endpoint, str) or not isinstance(token_endpoint, str):
+        raise RuntimeError(
+            "IdP OIDC config is missing device_authorization_endpoint or "
+            f"token_endpoint (issuer={issuer})."
+        )
+    return device_endpoint, token_endpoint
+
+
 def _decode_sub(access_token: str) -> str:
     # JWT middle segment, base64url-decoded. We do NOT validate signature here;
     # the server validates on every API call (Pitfall #4: token audience is
@@ -83,9 +108,12 @@ async def run_login(server_url: str | None) -> None:
 
     async with httpx.AsyncClient(timeout=30.0) as client:
         authentik_base = await _discover_authentik_issuer(client, effective_url)
+        device_endpoint, token_endpoint = await _discover_device_endpoints(
+            client, authentik_base
+        )
 
         device_resp = await client.post(
-            f"{authentik_base}/application/o/device/",
+            device_endpoint,
             data={"client_id": CLIENT_ID, "scope": SCOPES},
         )
         device_resp.raise_for_status()
@@ -107,7 +135,7 @@ async def run_login(server_url: str | None) -> None:
         while loop.time() < deadline:
             await asyncio.sleep(interval)
             tok_resp = await client.post(
-                f"{authentik_base}/application/o/token/",
+                token_endpoint,
                 data={
                     "grant_type": DEVICE_GRANT,
                     "device_code": device_code,

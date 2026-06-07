@@ -32,11 +32,28 @@ def _setup_server(
     server_url: str | None = None,
 ) -> tuple[str, str]:
     """Mock both the server discovery + Authentik device/token endpoints on
-    the same httpserver. Returns (server_url, authentik_issuer)."""
+    the same httpserver. Returns (server_url, authentik_issuer).
+
+    The issuer carries a per-application path suffix (``/application/o/keenyspace``)
+    to faithfully reproduce Authentik. The device/token endpoints live at the
+    host ROOT, advertised via the IdP OIDC discovery doc — this is the
+    regression guard for the doubled-path 405 bug (appending the device path to
+    the issuer would yield ``/application/o/keenyspace/application/o/device/``).
+    """
     url = server_url or _ipv4(httpserver.url_for(""))
-    issuer = url.rstrip("/")
+    root = url.rstrip("/")
+    issuer = f"{root}/application/o/keenyspace"
     httpserver.expect_request("/v1/api/auth/discovery").respond_with_json(
         {"issuer": issuer}
+    )
+    httpserver.expect_request(
+        "/application/o/keenyspace/.well-known/openid-configuration"
+    ).respond_with_json(
+        {
+            "issuer": issuer,
+            "device_authorization_endpoint": f"{root}/application/o/device/",
+            "token_endpoint": f"{root}/application/o/token/",
+        }
     )
     return url, issuer
 
