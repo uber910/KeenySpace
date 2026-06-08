@@ -22,3 +22,8 @@ dist/
 # IDE
 .idea/
 
+
+# Local secrets / env overrides (compose interpolation) — never commit
+.env
+deploy/.env
+*.local.env

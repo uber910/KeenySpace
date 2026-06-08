@@ -8,10 +8,13 @@ from pathlib import Path
 from typing import Literal, cast
 from uuid import UUID, uuid4
 
-import anthropic
 import structlog
 from keenyspace_shared.loop_detector import LoopDetector
-from pydantic_ai.exceptions import UnexpectedModelBehavior, UsageLimitExceeded
+from pydantic_ai.exceptions import (
+    ModelAPIError,
+    UnexpectedModelBehavior,
+    UsageLimitExceeded,
+)
 from sqlalchemy import select, update
 
 from keenyspace_server.compile.agent import run_compile_agent
@@ -287,6 +290,7 @@ class CompileCoordinator:
                 run_compile_agent(
                     deps,
                     model_name=self.settings.model,
+                    provider=self.settings.provider,
                     max_tool_calls=self.settings.max_tool_calls,
                     max_input_tokens=self.settings.max_input_tokens,
                     max_output_tokens=self.settings.max_output_tokens,
@@ -310,8 +314,7 @@ class CompileCoordinator:
             COMPILE_RUNS_TOTAL.labels(workspace=str(ws_uuid), status="abort_budget").inc()
             raise
         except (
-            anthropic.APIStatusError,
-            anthropic.APIConnectionError,
+            ModelAPIError,
             UnexpectedModelBehavior,
         ) as exc:
             await self._pause(ws_uuid, reason="llm_error", error=str(exc))

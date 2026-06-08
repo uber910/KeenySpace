@@ -39,3 +39,23 @@ def test_settings_compile_field_loads_env() -> None:
         assert s.compile.model == "claude-opus-4-7"
         assert s.compile.max_tool_calls == 10
         assert s.compile.daily_token_ceiling == 500_000
+
+
+def test_resolve_model_id_provider_neutral() -> None:
+    """Phase 6 dogfood: compile must be provider-neutral (default anthropic)."""
+    from keenyspace_server.compile.agent import resolve_model_id
+
+    # bare name qualified with default provider (anthropic) — D-04 default preserved
+    assert resolve_model_id("claude-sonnet-4-6") == "anthropic:claude-sonnet-4-6"
+    # bare name qualified with an explicit provider
+    assert resolve_model_id("gpt-4o", "openai") == "openai:gpt-4o"
+    # already-qualified id passes through untouched, regardless of provider arg
+    assert resolve_model_id("openai:gpt-4o", "anthropic") == "openai:gpt-4o"
+    assert resolve_model_id("anthropic:claude-sonnet-4-6", "openai") == "anthropic:claude-sonnet-4-6"
+
+
+def test_compile_settings_provider_default_and_override() -> None:
+    from keenyspace_server.compile.settings import CompileSettings
+
+    assert CompileSettings().provider == "anthropic"  # locked D-04 default
+    assert CompileSettings(provider="openai", model="gpt-4o").provider == "openai"

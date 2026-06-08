@@ -36,6 +36,16 @@ Rules you must never break:
 
 DEFAULT_MODEL = "anthropic:claude-sonnet-4-6"
 
+
+def resolve_model_id(model_name: str, provider: str = "anthropic") -> str:
+    """Build a pydantic-ai model id from a (possibly bare) model name.
+
+    A fully-qualified id ("openai:gpt-4o", "anthropic:claude-...") is returned
+    unchanged; a bare name ("gpt-4o") is qualified with ``provider``. No provider
+    is hard-coded — pydantic-ai is the vendor-neutral layer.
+    """
+    return model_name if ":" in model_name else f"{provider}:{model_name}"
+
 compile_agent: Agent[CompileDeps, CompilePlan] = Agent(
     DEFAULT_MODEL,
     output_type=CompilePlan,
@@ -130,6 +140,7 @@ async def run_compile_agent(
     deps: CompileDeps,
     *,
     model_name: str = "claude-sonnet-4-6",
+    provider: str = "anthropic",
     max_tool_calls: int = 20,
     max_input_tokens: int = 50_000,
     max_output_tokens: int = 20_000,
@@ -145,7 +156,7 @@ async def run_compile_agent(
     Always `await` — never `agent.run_sync()` (would crash inside the async event loop).
     """
     detector = loop_detector or LoopDetector(max_repeats=3)
-    model = f"anthropic:{model_name}" if not model_name.startswith("anthropic:") else model_name
+    model = resolve_model_id(model_name, provider)
     result = await compile_agent.run(
         deps.wal_text,
         deps=deps,

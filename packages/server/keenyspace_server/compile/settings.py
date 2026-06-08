@@ -13,4 +13,9 @@ class CompileSettings(BaseModel):
     max_output_tokens: int = 20_000
     max_seconds: int = 180
     daily_token_ceiling: int = 500_000
+    # Provider is pydantic-ai's provider id (anthropic | openai | google-gla | ...).
+    # `model` is the bare model name; the agent joins them as "<provider>:<model>".
+    # A fully-qualified `model` ("openai:gpt-4o") overrides `provider`. Anthropic
+    # stays the default (D-04); other providers are opt-in via KEENYSPACE_COMPILE__*.
+    provider: str = "anthropic"
     model: str = "claude-sonnet-4-6"

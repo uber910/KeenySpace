@@ -24,6 +24,15 @@ services:
       KEENYSPACE_AUTH__SESSION_SECRET_KEY: session-secret-replace-me-min-32-bytes-xxxxxx
       KEENYSPACE_AUTH__API_KEY_PEPPER: api-key-pepper-replace-me-min-32-bytes-xxxxxx
       KEENYSPACE_AUTO_MIGRATE: "true"
+      # Compile is provider-neutral (pydantic-ai). Anthropic stays the default
+      # (D-04); override provider/model + supply the matching key via deploy/.env
+      # (gitignored) for OpenAI/etc. Keys default to empty so the image is safe
+      # to commit. The LLM API key for the chosen provider must be present here
+      # for the server-side compile agent to run.
+      KEENYSPACE_COMPILE__PROVIDER: ${KEENYSPACE_COMPILE__PROVIDER:-anthropic}
+      KEENYSPACE_COMPILE__MODEL: ${KEENYSPACE_COMPILE__MODEL:-claude-sonnet-4-6}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
     volumes:
       - keenyspace-fs:/var/lib/keenyspace
     depends_on:
