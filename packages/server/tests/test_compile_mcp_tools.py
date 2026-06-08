@@ -26,8 +26,8 @@ async def test_build_mcp_registers_four_tools() -> None:
     mcp = build_mcp()
     tools = await mcp.list_tools()
     tool_names = {t.name for t in tools}
-    assert "compile_tool" in tool_names, f"compile_tool not in {tool_names}"
-    assert "compile_status_tool" in tool_names, f"compile_status_tool not in {tool_names}"
+    assert "compile" in tool_names, f"compile_tool not in {tool_names}"
+    assert "compile_status" in tool_names, f"compile_status_tool not in {tool_names}"
     assert "read_page" in tool_names
     assert "append_log" in tool_names
 
@@ -182,7 +182,7 @@ async def test_mcp_compile_status_returns_state_field(tmp_path) -> None:
             headers=headers,
         )
         async with Client(transport) as mcp_client:
-            result = await mcp_client.call_tool("compile_status_tool", {"workspace": slug})
+            result = await mcp_client.call_tool("compile_status", {"workspace": slug})
             assert result is not None
             result_str = str(result)
             assert "state" in result_str, (
@@ -259,7 +259,7 @@ async def test_mcp_compile_trigger_returns_job_id(tmp_path) -> None:
             headers=headers,
         )
         async with Client(transport) as mcp_client:
-            result = await mcp_client.call_tool("compile_tool", {"workspace": slug})
+            result = await mcp_client.call_tool("compile", {"workspace": slug})
             assert result is not None
             result_str = str(result)
             assert "job_id" in result_str or "status" in result_str, (

@@ -13,15 +13,15 @@ async def test_build_mcp_registers_eleven_tools() -> None:
     expected = {
         "read_page",
         "append_log",
-        "compile_tool",
-        "compile_status_tool",
-        "list_workspaces_tool",
-        "get_workspace_info_tool",
-        "list_pages_tool",
-        "search_workspace_tool",
-        "get_recent_changes_tool",
-        "list_blueprints_tool",
-        "get_instructions_tool",
+        "compile",
+        "compile_status",
+        "list_workspaces",
+        "get_workspace_info",
+        "list_pages",
+        "search_workspace",
+        "get_recent_changes",
+        "list_blueprints",
+        "get_instructions",
     }
     for name in expected:
         assert name in tool_names, f"{name!r} not in {tool_names}"

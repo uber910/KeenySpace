@@ -101,7 +101,7 @@ async def test_get_recent_changes_tool_registered() -> None:
 
     mcp = build_mcp()
     names = {t.name for t in await mcp.list_tools()}
-    assert "get_recent_changes_tool" in names
+    assert "get_recent_changes" in names
 
 
 @pytest.mark.slow
@@ -182,7 +182,7 @@ async def test_get_recent_changes_descending_mtime(tmp_path) -> None:
         )
         async with Client(transport) as mcp_client:
             result = await mcp_client.call_tool(
-                "get_recent_changes_tool", {"workspace": slug}
+                "get_recent_changes", {"workspace": slug}
             )
             result_str = str(result)
             assert "b.md" in result_str
@@ -284,7 +284,7 @@ async def test_get_recent_changes_cursor_stable(tmp_path) -> None:
                 if cursor_token is not None:
                     call_args["cursor"] = cursor_token
 
-                result = await mcp_client.call_tool("get_recent_changes_tool", call_args)
+                result = await mcp_client.call_tool("get_recent_changes", call_args)
                 result_str = str(result)
 
                 for name in file_names:
@@ -398,7 +398,7 @@ async def test_get_recent_changes_since_filter(tmp_path) -> None:
         )
         async with Client(transport) as mcp_client:
             result = await mcp_client.call_tool(
-                "get_recent_changes_tool", {"workspace": slug, "since": since_iso}
+                "get_recent_changes", {"workspace": slug, "since": since_iso}
             )
             result_str = str(result)
             assert "old.md" not in result_str, f"old.md should be filtered; got: {result_str}"
@@ -478,7 +478,7 @@ async def test_get_recent_changes_invalid_since_rejected(tmp_path) -> None:
         async with Client(transport) as mcp_client:
             try:
                 result = await mcp_client.call_tool(
-                    "get_recent_changes_tool",
+                    "get_recent_changes",
                     {"workspace": slug, "since": "not-a-timestamp"},
                 )
                 result_str = str(result)
@@ -562,7 +562,7 @@ async def test_get_recent_changes_malformed_cursor_rejected(tmp_path) -> None:
         async with Client(transport) as mcp_client:
             try:
                 result = await mcp_client.call_tool(
-                    "get_recent_changes_tool",
+                    "get_recent_changes",
                     {"workspace": slug, "cursor": "not-base64!!!"},
                 )
                 result_str = str(result)

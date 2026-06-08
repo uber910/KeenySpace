@@ -144,7 +144,7 @@ async def test_list_pages_returns_sorted_paths(tmp_path) -> None:
 
         transport = StreamableHttpTransport(f"http://127.0.0.1:{port}/v1/mcp/", headers=headers)
         async with Client(transport) as mcp_client:
-            result = await mcp_client.call_tool("list_pages_tool", {"workspace": slug})
+            result = await mcp_client.call_tool("list_pages", {"workspace": slug})
             data = result.structured_content if hasattr(result, "structured_content") else result.data
             pages = data["pages"]
             assert "concepts/a.md" in pages
@@ -208,7 +208,7 @@ async def test_list_pages_prefix_concepts(tmp_path) -> None:
         transport = StreamableHttpTransport(f"http://127.0.0.1:{port}/v1/mcp/", headers=headers)
         async with Client(transport) as mcp_client:
             result = await mcp_client.call_tool(
-                "list_pages_tool", {"workspace": slug, "prefix": "concepts/"}
+                "list_pages", {"workspace": slug, "prefix": "concepts/"}
             )
             data = result.structured_content if hasattr(result, "structured_content") else result.data
             pages = data["pages"]
@@ -276,7 +276,7 @@ async def test_list_pages_cursor_pagination(tmp_path) -> None:
                 args: dict = {"workspace": slug, "limit": 2}
                 if cursor is not None:
                     args["cursor"] = cursor
-                result = await mcp_client.call_tool("list_pages_tool", args)
+                result = await mcp_client.call_tool("list_pages", args)
                 data = result.structured_content if hasattr(result, "structured_content") else result.data
                 page = data["pages"]
                 all_collected.extend(page)
@@ -336,7 +336,7 @@ async def test_list_pages_unsafe_prefix_rejected(tmp_path) -> None:
         async with Client(transport) as mcp_client:
             try:
                 res = await mcp_client.call_tool(
-                    "list_pages_tool", {"workspace": slug, "prefix": "../etc"}
+                    "list_pages", {"workspace": slug, "prefix": "../etc"}
                 )
                 is_error = getattr(res, "is_error", False)
                 assert is_error, f"expected error result, got {res}"
@@ -398,7 +398,7 @@ async def test_search_workspace_content_match(tmp_path) -> None:
         transport = StreamableHttpTransport(f"http://127.0.0.1:{port}/v1/mcp/", headers=headers)
         async with Client(transport) as mcp_client:
             result = await mcp_client.call_tool(
-                "search_workspace_tool", {"workspace": slug, "query": "bravo"}
+                "search_workspace", {"workspace": slug, "query": "bravo"}
             )
             data = result.structured_content if hasattr(result, "structured_content") else result.data
             paths = [r["path"] for r in data["results"]]
@@ -460,7 +460,7 @@ async def test_search_workspace_filename_match(tmp_path) -> None:
         transport = StreamableHttpTransport(f"http://127.0.0.1:{port}/v1/mcp/", headers=headers)
         async with Client(transport) as mcp_client:
             result = await mcp_client.call_tool(
-                "search_workspace_tool", {"workspace": slug, "query": "banana"}
+                "search_workspace", {"workspace": slug, "query": "banana"}
             )
             data = result.structured_content if hasattr(result, "structured_content") else result.data
             paths = [r["path"] for r in data["results"]]
@@ -517,7 +517,7 @@ async def test_search_workspace_invalid_regex_rejected(tmp_path) -> None:
         async with Client(transport) as mcp_client:
             try:
                 res = await mcp_client.call_tool(
-                    "search_workspace_tool", {"workspace": slug, "query": "["}
+                    "search_workspace", {"workspace": slug, "query": "["}
                 )
                 is_error = getattr(res, "is_error", False)
                 assert is_error, f"expected error result, got {res}"

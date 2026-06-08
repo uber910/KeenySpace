@@ -21,8 +21,8 @@ async def test_list_workspaces_tool_registered_in_mcp() -> None:
     mcp = build_mcp()
     tools = await mcp.list_tools()
     names = {t.name for t in tools}
-    assert "list_workspaces_tool" in names
-    assert "get_workspace_info_tool" in names
+    assert "list_workspaces" in names
+    assert "get_workspace_info" in names
 
 
 def _find_free_port() -> int:
@@ -208,7 +208,7 @@ async def test_list_workspaces_active_only(tmp_path) -> None:
             f"http://127.0.0.1:{port}/v1/mcp/", headers=headers
         )
         async with Client(transport) as mcp_client:
-            result = await mcp_client.call_tool("list_workspaces_tool", {"include_archived": False})
+            result = await mcp_client.call_tool("list_workspaces", {"include_archived": False})
             assert result is not None
             result_str = str(result)
             assert active_slug in result_str, f"active slug not in result: {result_str}"
@@ -291,7 +291,7 @@ async def test_list_workspaces_include_archived(tmp_path) -> None:
             f"http://127.0.0.1:{port}/v1/mcp/", headers=headers
         )
         async with Client(transport) as mcp_client:
-            result = await mcp_client.call_tool("list_workspaces_tool", {"include_archived": True})
+            result = await mcp_client.call_tool("list_workspaces", {"include_archived": True})
             assert result is not None
             result_str = str(result)
             assert active_slug in result_str, f"active slug missing: {result_str}"
@@ -358,7 +358,7 @@ async def test_get_workspace_info(tmp_path) -> None:
             f"http://127.0.0.1:{port}/v1/mcp/", headers=headers
         )
         async with Client(transport) as mcp_client:
-            result = await mcp_client.call_tool("get_workspace_info_tool", {"workspace": slug})
+            result = await mcp_client.call_tool("get_workspace_info", {"workspace": slug})
             assert result is not None
             result_str = str(result)
             assert slug in result_str, f"slug missing from result: {result_str}"
@@ -415,7 +415,7 @@ async def test_get_workspace_info_missing_raises_tool_error(tmp_path) -> None:
         )
         async with Client(transport) as mcp_client:
             result = await mcp_client.call_tool(
-                "get_workspace_info_tool", {"workspace": "does-not-exist-xyz"}
+                "get_workspace_info", {"workspace": "does-not-exist-xyz"}
             )
             result_str = str(result)
             assert "not found" in result_str or "error" in result_str.lower(), (

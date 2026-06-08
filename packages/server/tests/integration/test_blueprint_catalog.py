@@ -148,7 +148,7 @@ async def test_list_blueprints_discovers_default(app, pg_url) -> None:
             if health.status_code in (500, 503):
                 pytest.skip("server not ready")
         async with _make_fastmcp_client(app, plaintext) as mcp_client:
-            resp = await mcp_client.call_tool("list_blueprints_tool", {})
+            resp = await mcp_client.call_tool("list_blueprints", {})
         data = resp.structured_content if hasattr(resp, "structured_content") else resp.data
         names = {b["name"] for b in data["blueprints"]}
         assert "default" in names
@@ -172,7 +172,7 @@ async def test_list_blueprints_discovers_fixture_blueprint(app, pg_url) -> None:
             if health.status_code in (500, 503):
                 pytest.skip("server not ready")
         async with _make_fastmcp_client(app, plaintext) as mcp_client:
-            resp = await mcp_client.call_tool("list_blueprints_tool", {})
+            resp = await mcp_client.call_tool("list_blueprints", {})
         data = resp.structured_content if hasattr(resp, "structured_content") else resp.data
         blueprints = data["blueprints"]
         names = {b["name"] for b in blueprints}
@@ -245,7 +245,7 @@ async def test_get_instructions_renders_with_context(app, pg_url) -> None:
             await _seed_workspace(client, "ingest-ws", blueprint="default")
         async with _make_fastmcp_client(app, plaintext) as mcp_client:
             resp = await mcp_client.call_tool(
-                "get_instructions_tool",
+                "get_instructions",
                 {
                     "workspace": "ingest-ws",
                     "command": "ingest",
@@ -277,7 +277,7 @@ async def test_get_instructions_strict_undefined_raises(app, pg_url) -> None:
         async with _make_fastmcp_client(app, plaintext) as mcp_client:
             with pytest.raises(Exception, match="instructions_template_error"):
                 await mcp_client.call_tool(
-                    "get_instructions_tool",
+                    "get_instructions",
                     {
                         "workspace": "ingest-ws",
                         "command": "ingest",
@@ -324,7 +324,7 @@ async def test_get_instructions_dunder_blocked_raises(app, pg_url) -> None:
         async with _make_fastmcp_client(app, plaintext) as mcp_client:
             with pytest.raises(Exception, match="instructions_template_error"):
                 await mcp_client.call_tool(
-                    "get_instructions_tool",
+                    "get_instructions",
                     {
                         "workspace": "sandbox-ws",
                         "command": "sandbox-test",
@@ -347,7 +347,7 @@ async def test_list_blueprints_skips_malformed_yaml(app, pg_url) -> None:
                 pytest.skip("server not ready")
         with structlog.testing.capture_logs() as captured:
             async with _make_fastmcp_client(app, plaintext) as mcp_client:
-                resp = await mcp_client.call_tool("list_blueprints_tool", {})
+                resp = await mcp_client.call_tool("list_blueprints", {})
     data = resp.structured_content if hasattr(resp, "structured_content") else resp.data
     names = {b["name"] for b in data["blueprints"]}
     assert "bad-bp" not in names
