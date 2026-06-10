@@ -240,6 +240,7 @@ async def test_hook_drops_on_default_workspace(
     monkeypatch,
     capsys,
 ) -> None:
+    monkeypatch.setenv("KEENYSPACE_SERVER_URL", "http://127.0.0.1:1")
     (temp_config_dir["config_dir"] / "config.yaml").write_text("default_workspace: fallback\n")
     import keenyspace.config as cfg_mod
     importlib.reload(cfg_mod)
@@ -266,6 +267,7 @@ async def test_hook_forwards_when_mapped(
 ) -> None:
     import yaml
 
+    monkeypatch.setenv("KEENYSPACE_SERVER_URL", "http://127.0.0.1:1")
     map_path = temp_config_dir["config_dir"] / "workspace-map.yaml"
     cwd_path = str(Path("/tmp").resolve())
     map_path.write_text(yaml.safe_dump({"paths": {cwd_path: "mapped"}}))

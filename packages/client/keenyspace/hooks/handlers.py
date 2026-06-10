@@ -42,15 +42,23 @@ def _augment(
     claude_envelope: dict[str, Any],
     *,
     extra: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> dict[str, Any] | None:
     cwd = claude_envelope.get("cwd") or os.getcwd()
     # Slug inference must never crash a hook: a missing config.yaml or a
     # broken workspace-map.yaml leaves slug=None — daemon then sees a
     # workspace_slug=null envelope and handles that gracefully.
     try:
-        slug, _ = resolve_workspace_slug(cwd=cwd)
+        slug, source = resolve_workspace_slug(cwd=cwd)
     except Exception:  # broad: hook MUST exit 0 even on config errors
         slug = None
+        source = "unresolved"
+    if source == "default":
+        from keenyspace.hooks.dropped import increment
+        increment("unmapped-workspace")
+        # WHY stderr not structlog: hook <1s cold-boot budget forbids the
+        # structlog import — matches uds_client.py / _read_stdin_envelope pattern.
+        print(f"WARN: hook event dropped, no workspace mapping for cwd={cwd}", file=sys.stderr)
+        return None
     env: dict[str, Any] = {
         "kind": kind,
         "ts": datetime.now(UTC).isoformat(),
@@ -64,6 +72,8 @@ def _augment(
 
 async def handle_post_tool() -> None:
     env = _augment("post-tool", _read_stdin_envelope())
+    if env is None:
+        return
     await fire_and_forget(env)
 
 
@@ -75,6 +85,8 @@ async def handle_session_start() -> None:
         claude,
         extra={"source": source, "transcript_path": claude.get("transcript_path")},
     )
+    if env is None:
+        return
     if source == "compact":
         # F-09: re-injection happens here, not on PostCompact (Claude Code spec).
         content = await request_response(env, counter_key="session-start.compact")
@@ -95,14 +107,23 @@ async def handle_session_start() -> None:
 
 
 async def handle_session_end() -> None:
-    await fire_and_forget(_augment("session-end", _read_stdin_envelope()))
+    env = _augment("session-end", _read_stdin_envelope())
+    if env is None:
+        return
+    await fire_and_forget(env)
 
 
 async def handle_pre_compact() -> None:
-    await fire_and_forget(_augment("pre-compact", _read_stdin_envelope()))
+    env = _augment("pre-compact", _read_stdin_envelope())
+    if env is None:
+        return
+    await fire_and_forget(env)
 
 
 async def handle_post_compact() -> None:
     # F-09: post-compact stays a fire-and-forget audit event; Claude Code
     # ignores its stdout, so we never write to stdout here.
-    await fire_and_forget(_augment("post-compact", _read_stdin_envelope()))
+    env = _augment("post-compact", _read_stdin_envelope())
+    if env is None:
+        return
+    await fire_and_forget(env)
