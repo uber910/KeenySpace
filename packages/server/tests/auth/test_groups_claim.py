@@ -15,7 +15,6 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 from joserfc.jwk import KeySet
-
 from keenyspace_server.auth.oidc import OidcClient
 from keenyspace_server.config import AuthSettings
 

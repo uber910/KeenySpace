@@ -5,6 +5,7 @@ D-10..D-13. Lazy discovery; JWKS validation via JwksCache; PKCE S256.
 
 from __future__ import annotations
 
+import contextlib
 import time
 from typing import Any
 
@@ -115,10 +116,8 @@ class OidcClient:
         if conn is not None and self.is_near_expiry(
             decoded.claims, self._auth.refresh_threshold_seconds
         ):
-            try:
+            with contextlib.suppress(Exception):
                 conn.state.ks_at_expiring_soon = True
-            except Exception:
-                pass
 
         sub_value = decoded.claims.get("sub")
         if not isinstance(sub_value, str):

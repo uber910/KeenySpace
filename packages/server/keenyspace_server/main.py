@@ -120,6 +120,7 @@ def build_app() -> FastAPI:
     composite_backend = CompositeAuthBackend(
         oidc_client=oidc_client,
         api_key_service=api_key_service,
+        required_group=settings.auth.required_group,
     )
     # Middleware order — Starlette wraps in reverse-add order; LAST add_middleware
     # = OUTERMOST = runs first on inbound request. SessionMiddleware must run
