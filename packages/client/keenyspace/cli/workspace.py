@@ -7,7 +7,10 @@ endpoints; pull defers to keenyspace.cli.pull.run_pull.
 from __future__ import annotations
 
 import asyncio
+import os
+import subprocess
 import sys
+from pathlib import Path
 from typing import Any
 
 import typer
@@ -54,6 +57,34 @@ def from_cwd_cmd() -> None:
         raise typer.Exit(code=2)
     console.print(slug)
     console.print(f"source: {source}")
+
+
+@workspace_app.command("register")
+def register_cmd(
+    slug: str,
+    path: str | None = typer.Argument(None),
+    force: bool = typer.Option(False, "--force"),
+    marker: bool = typer.Option(False, "--marker"),
+) -> None:
+    """Bind a directory to a workspace slug in workspace-map.yaml (or as a marker)."""
+
+    asyncio.run(_run_register(slug, path, force=force, marker=marker))
+
+
+@workspace_app.command("unregister")
+def unregister_cmd(
+    path: str | None = typer.Argument(None),
+) -> None:
+    """Remove the directory->workspace mapping for PATH (or git toplevel / cwd)."""
+
+    _run_unregister(path)
+
+
+@workspace_app.command("registrations")
+def registrations_cmd() -> None:
+    """Print a table of all registered path->slug entries."""
+
+    _run_registrations()
 
 
 @workspace_app.command("pull")
@@ -125,6 +156,145 @@ async def _run_use(slug: str) -> None:
     payload = yaml.safe_dump(current, sort_keys=False).encode()
     write_atomic(CONFIG_YAML, payload)
     console.print(f"[green]Default workspace set to {slug}[/green]")
+
+
+def _resolve_target_path(path: str | None) -> str:
+    if path is not None:
+        return str(Path(path).resolve())
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--show-toplevel"],
+            capture_output=True,
+            text=True,
+            cwd=os.getcwd(),
+        )
+        if result.returncode == 0:
+            return str(Path(result.stdout.strip()).resolve())
+    except (FileNotFoundError, OSError):
+        pass
+    return str(Path(os.getcwd()).resolve())
+
+
+async def _run_register(
+    slug: str,
+    path: str | None,
+    *,
+    force: bool,
+    marker: bool,
+) -> None:
+    import json
+
+    import yaml
+
+    from keenyspace.clients.http import build_http_client
+    from keenyspace.fs.atomic import write_atomic
+    from keenyspace.paths import CONFIG_DIR, WORKSPACE_MAP_YAML
+
+    abs_path = _resolve_target_path(path)
+    console = _console()
+
+    try:
+        import httpx
+
+        async with build_http_client() as client:
+            resp = await client.get(f"/v1/api/workspaces/{slug}")
+        if resp.status_code == 404:
+            console.print(f"[red]workspace not found:[/red] {slug}")
+            sys.exit(2)
+        resp.raise_for_status()
+    except (httpx.ConnectError, httpx.ConnectTimeout):
+        # WHY: server unreachable at register time is non-fatal; the map entry
+        # is still useful for local routing and can be validated later.
+        console.print("[yellow]warning: server unreachable, registering without validation[/yellow]")
+
+    if marker:
+        marker_dir = Path(abs_path) / ".keenyspace"
+        marker_dir.mkdir(parents=True, exist_ok=True)
+        marker_path = marker_dir / "slug-marker.json"
+        write_atomic(marker_path, json.dumps({"slug": slug}).encode())
+        console.print(f"[green]Marker written to {marker_path}[/green]")
+        return
+
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    raw: dict[str, Any] = {}
+    if WORKSPACE_MAP_YAML.is_file():
+        loaded = yaml.safe_load(WORKSPACE_MAP_YAML.read_text()) or {}
+        raw = loaded if isinstance(loaded, dict) else {}
+    paths_map_raw = raw.get("paths") or {}
+    paths_map: dict[str, str] = paths_map_raw if isinstance(paths_map_raw, dict) else {}
+
+    if abs_path in paths_map:
+        existing = paths_map[abs_path]
+        if existing == slug:
+            console.print(f"[dim]{abs_path} already registered as {slug}[/dim]")
+            return
+        if not force:
+            console.print(f"[yellow]{abs_path} -> {existing}[/yellow]")
+            console.print("[red]refusing without --force[/red]")
+            sys.exit(1)
+
+    paths_map[abs_path] = slug
+    raw["paths"] = paths_map
+    write_atomic(WORKSPACE_MAP_YAML, yaml.safe_dump(raw, sort_keys=False).encode())
+    console.print(f"[green]Registered {abs_path} -> {slug}[/green]")
+
+
+def _run_unregister(path: str | None) -> None:
+    import yaml
+
+    from keenyspace.fs.atomic import write_atomic
+    from keenyspace.paths import WORKSPACE_MAP_YAML
+
+    abs_path = _resolve_target_path(path)
+    console = _console()
+
+    if not WORKSPACE_MAP_YAML.is_file():
+        console.print(f"[yellow]no registration for {abs_path}[/yellow]")
+        sys.exit(2)
+
+    raw: dict[str, Any] = {}
+    loaded = yaml.safe_load(WORKSPACE_MAP_YAML.read_text()) or {}
+    raw = loaded if isinstance(loaded, dict) else {}
+    paths_map_raw = raw.get("paths") or {}
+    paths_map: dict[str, str] = paths_map_raw if isinstance(paths_map_raw, dict) else {}
+
+    if abs_path not in paths_map:
+        console.print(f"[yellow]no registration for {abs_path}[/yellow]")
+        sys.exit(2)
+
+    del paths_map[abs_path]
+    raw["paths"] = paths_map
+    write_atomic(WORKSPACE_MAP_YAML, yaml.safe_dump(raw, sort_keys=False).encode())
+    console.print(f"[green]Unregistered {abs_path}[/green]")
+
+
+def _run_registrations() -> None:
+    import yaml
+    from rich.table import Table
+
+    from keenyspace.paths import WORKSPACE_MAP_YAML
+
+    console = _console()
+    if not WORKSPACE_MAP_YAML.is_file():
+        console.print("[dim]no registrations[/dim]")
+        return
+
+    raw: dict[str, Any] = {}
+    loaded = yaml.safe_load(WORKSPACE_MAP_YAML.read_text()) or {}
+    raw = loaded if isinstance(loaded, dict) else {}
+    paths_map_raw = raw.get("paths") or {}
+    paths_map: dict[str, str] = paths_map_raw if isinstance(paths_map_raw, dict) else {}
+
+    if not paths_map:
+        console.print("[dim]no registrations[/dim]")
+        return
+
+    table = Table(title="Registrations")
+    table.add_column("path")
+    table.add_column("slug")
+    for p in sorted(paths_map):
+        table.add_row(p, paths_map[p])
+    console.print(table)
 
 
 async def _run_archive(slug: str) -> None:
