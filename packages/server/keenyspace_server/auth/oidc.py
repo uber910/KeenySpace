@@ -126,10 +126,15 @@ class OidcClient:
         display_name = (
             decoded.claims.get("preferred_username") or decoded.claims.get("name") or sub_value
         )
+        raw_groups = decoded.claims.get("groups", [])
+        groups: list[str] = (
+            [g for g in raw_groups if isinstance(g, str)] if isinstance(raw_groups, list) else []
+        )
         return User(
             sub=sub_value,
             _display_name=str(display_name),
             source="oidc",
+            groups=groups,
         )
 
     async def refresh(self, refresh_token: str) -> dict[str, Any] | None:
