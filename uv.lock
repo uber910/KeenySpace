@@ -1035,6 +1035,12 @@ test = [
     { name = "pytest-httpserver" },
 ]
 
+[package.dev-dependencies]
+dev = [
+    { name = "mypy" },
+    { name = "types-pyyaml" },
+]
+
 [package.metadata]
 requires-dist = [
     { name = "aiofiles", specifier = ">=24" },
@@ -1057,6 +1063,12 @@ requires-dist = [
     { name = "typer", specifier = ">=0.15" },
 ]
 provides-extras = ["test"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "mypy", specifier = ">=2.0.0" },
+    { name = "types-pyyaml", specifier = ">=6.0.12.20260508" },
+]
 
 [[package]]
 name = "keenyspace-server"
