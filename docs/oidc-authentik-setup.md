@@ -1,6 +1,6 @@
 # OIDC Authentik Setup
 
-Status: Dogfood quickstart section added (Phase 3.1 DEP-06a). Production hardening section deferred to Phase 7 DEP-06b.
+Status: Dogfood quickstart section added (Phase 3.1 DEP-06a). Production hardening section added (Phase 7 DEP-06b).
 
 ## Dogfood quickstart
 
@@ -107,9 +107,93 @@ Or via mcp-inspector against `/v1/mcp` with `read_page` on any workspace page.
   `scope` set as the interactive provider — otherwise CLI-minted tokens will
   not validate against KeenySpace middleware.
 
+## Production hardening (DEP-06b)
+
+The dogfood quickstart above is intentionally permissive. Before exposing the stack to
+a network, work through every subsection here.
+
+### Secrets
+
+Run the secret generator once, before first boot:
+
+```bash
+./deploy/gen-secrets.sh
+```
+
+It writes `deploy/.env` (mode 600, gitignored) with `openssl rand` values for all eight
+secrets the stack consumes: the KeenySpace and Authentik Postgres passwords, the
+Authentik secret key and bootstrap admin password/token, the OIDC client secret, the
+session signing key, and the API key pepper.
+
+Never ship the `replace-me` compose defaults. They exist only so the dogfood stack
+boots without a `.env` file — every `${VAR:-...replace-me...}` fallback in
+`deploy/docker-compose.yml` is overridden by the generated `.env`. The release CI scans
+for placeholder values reaching production configs; you should treat any `replace-me`
+in a running deployment as an incident.
+
+### Reverse proxy in front of Authentik
+
+KeenySpace itself is fronted by Caddy (`deploy/reverse-proxy/Caddyfile`) or nginx
+(`deploy/reverse-proxy/nginx.conf`). When you put Authentik behind a proxy too, give it
+a **separate hostname** (e.g. `auth.example.com`), NOT a sub-path on the main domain:
+
+```caddyfile
+auth.{$DOMAIN} {
+    reverse_proxy authentik:9000
+}
+```
+
+Sub-path proxying (`example.com/auth/`) changes the OIDC issuer URL embedded in every
+token (`iss` claim becomes `https://example.com/auth/application/o/keenyspace/`), and
+Authentik's internal redirects do not reliably rewrite under a path prefix. The result
+is silent auth breakage: login appears to succeed, then every API call gets 403 with
+`auth.token.iss_mismatch` in the server logs.
+
+Whatever URL your users reach Authentik at, the split-horizon issuer variables must
+reflect it:
+
+- `KEENYSPACE_AUTH__OIDC_ISSUER_URL` — the PUBLIC issuer URL, exactly as clients see it
+  (e.g. `https://auth.example.com/application/o/keenyspace/`). Tokens carry this `iss`.
+- `KEENYSPACE_AUTH__OIDC_INTERNAL_ISSUER_URL` — stays
+  `http://authentik:9000/application/o/keenyspace/` so the server fetches OIDC
+  discovery and JWKS over the compose network. JWKS keys are host-independent, so
+  internally fetched keys validate publicly issued tokens.
+
+This is the same split-horizon pattern the dogfood compose uses for
+`localhost:9000` / `authentik:9000` — production just swaps the public half for your
+real hostname.
+
+### Group entry gate
+
+Restrict server access to members of one Authentik group:
+
+1. Set `KEENYSPACE_AUTH__REQUIRED_GROUP=keenyspace-users` in `deploy/.env` and restart
+   the server. Empty (the default) means the gate is disabled.
+2. The `keenyspace-users` group and the `groups` scope mapping are already provisioned
+   by the blueprint (`deploy/authentik/blueprints/keenyspace.yaml`) — you only need to
+   add users to the group: Authentik admin UI > Directory > Groups > keenyspace-users >
+   Users > Add existing user.
+
+Behavior:
+
+- OIDC users NOT in the group are rejected at authentication with a plain 403. The
+  error deliberately does not name the required group.
+- API keys (`ks_live_*`) BYPASS the gate. A key can only be minted by a user who passed
+  the gate at mint time, so possession proves admission — and long-running MCP sessions
+  survive later IdP group changes. Revoke the key
+  (`DELETE /v1/api/auth/api-keys/{id}`) to cut off a holder.
+
+### Branding
+
+The blueprint provisions the login page branding automatically: brand title
+"KeenySpace" plus the logo and favicon mounted from `deploy/authentik/branding/` into
+the Authentik containers at `/blueprints/custom/branding/`. No manual admin UI work and
+no CSS theming — if you need a different logo, replace the SVG files and restart the
+Authentik worker to re-apply the blueprint.
+
 ## TODO (Phase 7)
 
 - [ ] Step-by-step screenshots for Authentik admin UI
-- [ ] Group-claim property mapping verification (`groups` scope) — Phase 4/v1.5
-      forward-compat
+- [x] Group-claim property mapping verification (`groups` scope) — provisioned by
+      blueprint and verified live in Phase 7 (DEP-06b)
 - [ ] Backup / restore drill for Authentik config alongside KeenySpace backup
