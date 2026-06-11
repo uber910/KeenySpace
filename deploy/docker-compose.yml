@@ -30,6 +30,9 @@ services:
       KEENYSPACE_AUTH__SESSION_SECRET_KEY: ${KEENYSPACE_SESSION_SECRET_KEY:-session-secret-replace-me-min-32-bytes-xxxxxx}
       KEENYSPACE_AUTH__API_KEY_PEPPER: ${KEENYSPACE_API_KEY_PEPPER:-api-key-pepper-replace-me-min-32-bytes-xxxxxx}
       KEENYSPACE_AUTH__REQUIRED_GROUP: ${KEENYSPACE_AUTH__REQUIRED_GROUP:-}
+      # Destructive admin backup/restore endpoints stay off by default (CR-02);
+      # the backup-restore drill exports KEENYSPACE_ADMIN_API_ENABLED=1 for its run.
+      KEENYSPACE_ADMIN_API_ENABLED: ${KEENYSPACE_ADMIN_API_ENABLED:-0}
       KEENYSPACE_AUTO_MIGRATE: "true"
       # Compile is provider-neutral (pydantic-ai). Anthropic stays the default
       # (D-04); override provider/model + supply the matching key via deploy/.env
