@@ -72,6 +72,7 @@ class AuthSettings(BaseModel):
     api_key_last_used_debounce_seconds: int = 300
 
     multi_worker: bool = False
+    required_group: str = ""
 
 
 class Settings(BaseSettings):

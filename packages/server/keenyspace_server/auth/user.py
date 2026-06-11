@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Literal
 
 from starlette.authentication import BaseUser
@@ -11,6 +11,7 @@ class User(BaseUser):
     sub: str
     _display_name: str
     source: Literal["oidc", "api_key"]
+    groups: list[str] = field(default_factory=list)
 
     @property
     def is_authenticated(self) -> bool:
