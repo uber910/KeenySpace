@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-packages --all-extras
+      - name: ruff check
+        run: uv run ruff check .
+      - name: mypy
+        run: |
+          uv run mypy --strict \
+            packages/server/keenyspace_server \
+            packages/client/keenyspace
+
+  test-server:
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:17.2-alpine
+        env:
+          POSTGRES_DB: keenyspace_test
+          POSTGRES_USER: keenyspace
+          POSTGRES_PASSWORD: testpw
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+        ports:
+          - 5432:5432
+    env:
+      KEENYSPACE_DB__URL: postgresql+asyncpg://keenyspace:testpw@localhost:5432/keenyspace_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-packages --all-extras
+      - name: pytest server
+        working-directory: packages/server
+        run: uv run --package keenyspace-server pytest tests/ -x -q -m "not real_idp"
+
+  test-client:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          enable-cache: true
+      - name: Install dependencies
+        run: uv sync --all-packages --all-extras
+      - name: pytest client
+        run: uv run --package keenyspace pytest packages/client/tests/ -x -q

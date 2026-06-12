@@ -1,6 +1,8 @@
+ARG TARGETPLATFORM
+
 FROM python:3.14.1-slim-bookworm AS builder
 
-RUN pip install --no-cache-dir uv==0.5.20
+RUN pip install --no-cache-dir uv==0.10.8
 
 WORKDIR /app
 COPY pyproject.toml .
