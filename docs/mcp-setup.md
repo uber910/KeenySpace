@@ -12,8 +12,11 @@ also work, but they expire — API keys are the intended path for long-running M
 
 Endpoint URL:
 
-- Behind Caddy (recommended): `http://localhost/v1/mcp`, or `https://<your-domain>/v1/mcp` in production
-- Direct to the server: `http://localhost:8000/v1/mcp`
+- Behind Caddy (recommended): `http://localhost/v1/mcp/`, or `https://<your-domain>/v1/mcp/` in production
+- Direct to the server: `http://localhost:8000/v1/mcp/`
+
+Keep the trailing slash: `/v1/mcp` (without it) answers with a 307 redirect, which
+not every MCP client follows.
 
 ## 2. Mint an API key
 
@@ -57,7 +60,7 @@ possession proves the key was created by an already-authorized user.
 One-liner:
 
 ```bash
-claude mcp add --transport http keenyspace http://localhost/v1/mcp \
+claude mcp add --transport http keenyspace http://localhost/v1/mcp/ \
   --header "Authorization: Bearer ks_live_..."
 ```
 
@@ -68,7 +71,7 @@ Or declare it in your project's `.mcp.json`:
   "mcpServers": {
     "keenyspace": {
       "type": "http",
-      "url": "http://localhost/v1/mcp",
+      "url": "http://localhost/v1/mcp/",
       "headers": {
         "Authorization": "Bearer ks_live_..."
       }
@@ -77,7 +80,7 @@ Or declare it in your project's `.mcp.json`:
 }
 ```
 
-Replace the URL with `https://<your-domain>/v1/mcp` for a production server. Do not
+Replace the URL with `https://<your-domain>/v1/mcp/` for a production server. Do not
 commit a `.mcp.json` containing a real key — prefer the `claude mcp add` form (stores
 config per-user) or an environment-variable expansion if your client supports it.
 
@@ -134,7 +137,7 @@ compile. There is no direct page write surface.
 ## Troubleshooting
 
 - **401 on every call:** the `Authorization` header is missing or the key was revoked.
-  Verify with `curl -H "Authorization: Bearer ks_live_..." http://localhost/v1/mcp` —
+  Verify with `curl -H "Authorization: Bearer ks_live_..." http://localhost/v1/mcp/` —
   a 401 from this means the key is bad; check `GET /v1/api/auth/api-keys` for
   `revoked_at`.
 - **First MCP call works, second hangs or fails:** you are not going through the

@@ -25,11 +25,14 @@ KEY="${KS_API_KEY:?KS_API_KEY required}"
 # rather than being buffered or dropped.
 BODY='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"sse-test","version":"0"}}}'
 
-OUT=$(curl --no-buffer -N -sS -m 30 \
+# Trailing slash matters: the MCP app is mounted at /v1/mcp with an internal
+# root of "/", so /v1/mcp (no slash) answers 307 and curl without -L sees an
+# empty body. -L keeps the test robust if the redirect behavior changes.
+OUT=$(curl --no-buffer -N -sS -L -m 30 \
   -H "Authorization: Bearer ${KEY}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json, text/event-stream" \
-  -X POST "${BASE}/v1/mcp" -d "${BODY}" || true)
+  -X POST "${BASE}/v1/mcp/" -d "${BODY}" || true)
 
 if echo "$OUT" | grep -Eq 'event:|data:|"jsonrpc"'; then
   echo "SSE passthrough OK via ${PROXY}"

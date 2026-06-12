@@ -16,6 +16,21 @@ RUN uv sync --frozen --no-dev --package keenyspace-server
 
 FROM python:3.14.1-slim-bookworm AS runtime
 
+# The admin backup/restore endpoints shell out to pg_dump/psql. The client
+# major must be >= the postgres server major (17), and bookworm ships 15 —
+# pull postgresql-client-17 from PGDG (publishes amd64 + arm64).
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates curl && \
+    install -d /usr/share/postgresql-common/pgdg && \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc && \
+    echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] http://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends postgresql-client-17 && \
+    apt-get purge -y curl && apt-get autoremove -y && \
+    rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --gid 10001 nonroot && \
     useradd --uid 10001 --gid 10001 --no-create-home nonroot
 
