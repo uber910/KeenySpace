@@ -53,6 +53,7 @@ jobs:
           mkdir -p "$HOME/.config/keenyspace"
           jq -n --arg k "$KS_API_KEY" --arg iss "http://localhost:9000/application/o/keenyspace/" \
             '{api_key:$k, issuer:$iss}' > "$HOME/.config/keenyspace/auth.json"
+          chmod 600 "$HOME/.config/keenyspace/auth.json"
       - name: Seed workspace
         run: |
           curl -sf -X POST http://localhost:8000/v1/api/workspaces/ \
@@ -82,6 +83,7 @@ jobs:
           mkdir -p "$HOME/.config/keenyspace"
           jq -n --arg k "$KS_API_KEY" --arg iss "http://localhost:9000/application/o/keenyspace/" \
             '{api_key:$k, issuer:$iss}' > "$HOME/.config/keenyspace/auth.json"
+          chmod 600 "$HOME/.config/keenyspace/auth.json"
           REAUTH_EOF
           chmod +x /tmp/drill-reauth.sh
           echo "DRILL_REAUTH_CMD=/tmp/drill-reauth.sh" >> "$GITHUB_ENV"
@@ -89,6 +91,8 @@ jobs:
         env:
           COMPOSE_PROJECT_NAME: ks-drill
           KEENYSPACE_ADMIN_API_ENABLED: "1"
+          KEENYSPACE_SERVER_URL: http://localhost:8000
+          DRILL_COMPOSE_FILES: "-f deploy/docker-compose.yml -f deploy/docker-compose.drill.yml"
         run: bash deploy/scripts/backup-restore-drill.sh
 
   proxy-test-caddy:
