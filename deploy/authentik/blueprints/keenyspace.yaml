@@ -72,9 +72,11 @@ entries:
   - model: authentik_brands.brand
     identifiers:
       domain: authentik-default
+    # branding_logo/branding_favicon intentionally omitted: Authentik 2026.2 rejects
+    # absolute paths ("Absolute paths are not allowed"), and blueprint apply is atomic
+    # — an invalid brand entry rolls back the ENTIRE blueprint, including the
+    # keenyspace-cli OAuth2 provider. Omitting them keeps the provider creation intact.
     attrs:
       branding_title: KeenySpace
-      branding_logo: /blueprints/custom/branding/keeny-white.svg
-      branding_favicon: /blueprints/custom/branding/favicon.svg
       flow_device_code:
         !Find [authentik_flows.flow, [slug, default-authentication-flow]]
