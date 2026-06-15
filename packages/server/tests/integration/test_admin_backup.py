@@ -278,5 +278,40 @@ async def test_admin_backup_anonymous_401(app: Any, pg_url: str) -> None:
             assert resp.status_code == 401
 
 
+async def test_admin_backup_pg_dump_failure_returns_500(
+    app: Any, pg_url: str, monkeypatch: Any
+) -> None:
+    """A pg_dump non-zero exit must surface as 500, not a silent empty 200.
+
+    Regression for the CI version-mismatch failure (server 17.2 vs pg_dump
+    16.14): pg_dump ran inside the StreamingResponse generator, so the 200 +
+    headers were already on the wire and the failure truncated the body to an
+    empty tarball (tarfile.ReadError) instead of returning an error.
+    """
+    import keenyspace_server.api.admin as admin_mod
+
+    monkeypatch.setattr(
+        admin_mod,
+        "_pg_dump_argv",
+        lambda _db_url: ["sh", "-c", "echo 'server version mismatch' >&2; exit 1"],
+    )
+    await _reset_schema(pg_url)
+    async with app.router.lifespan_context(app):
+        _, plaintext = await _seed_api_key_post_lifespan()
+        transport = ASGITransport(app=app, raise_app_exceptions=False)
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"Authorization": f"Bearer {plaintext}"},
+        ) as client:
+            health = await client.get("/healthz")
+            if health.status_code in (500, 503):
+                pytest.skip("server not ready")
+            await _seed_workspace(client)
+            resp = await client.post("/v1/admin/backup")
+            assert resp.status_code == 500, resp.text
+            assert resp.json()["detail"]["error"] == "pg_dump_failed"
+
+
 # Silence unused-import warning in environments without pg_dump
 _ = json
