@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import tempfile
 from collections.abc import AsyncIterator, Iterator
@@ -9,6 +10,22 @@ from typing import Any
 
 import pytest
 import pytest_asyncio
+
+
+@pytest.fixture(autouse=True)
+def _restore_os_environ() -> Iterator[None]:
+    """Snapshot/restore os.environ around every test.
+
+    Several CLI tests set ``os.environ["KEENYSPACE_SERVER_URL"]`` directly (not
+    via monkeypatch) inside reload helpers; without restoration that value leaks
+    into later tests (e.g. test_config) and breaks their assertions.
+    """
+    import os
+
+    snapshot = dict(os.environ)
+    yield
+    os.environ.clear()
+    os.environ.update(snapshot)
 
 
 @pytest.fixture
@@ -24,18 +41,12 @@ def short_xdg_state(monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
     state_dir = short / "keenyspace"
     yield state_dir
     for p in state_dir.glob("*"):
-        try:
+        with contextlib.suppress(OSError):
             p.unlink()
-        except OSError:
-            pass
-    try:
+    with contextlib.suppress(OSError):
         state_dir.rmdir()
-    except OSError:
-        pass
-    try:
+    with contextlib.suppress(OSError):
         short.rmdir()
-    except OSError:
-        pass
 
 
 @pytest.fixture

@@ -103,7 +103,7 @@ async def run_pull(
             dest = target_path / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
             write_atomic(dest, payload_bytes)
-            actual_hashes[rel] = hashlib.sha256(payload_bytes).hexdigest()
+            actual_hashes[rel] = "sha256:" + hashlib.sha256(payload_bytes).hexdigest()
 
         for rel in set(local_files) - set(server_files):
             (target_path / rel).unlink(missing_ok=True)
