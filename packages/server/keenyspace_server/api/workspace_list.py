@@ -88,7 +88,9 @@ async def _fetch_last_compile_map(
             .group_by(CompileRun.workspace_uuid)
         )
     ).all()
-    found: dict[UUID, datetime | None] = {ws_uuid: completed for ws_uuid, completed in rows}
+    found: dict[UUID, datetime | None] = {  # noqa: C416 - Row is not a tuple for mypy
+        ws_uuid: completed for ws_uuid, completed in rows
+    }
     return {uuid_: found.get(uuid_) for uuid_ in ws_uuids}
 
 

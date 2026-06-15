@@ -20,7 +20,7 @@ from fastmcp.client.auth import BearerAuth
 from keenyspace_shared.mcp_contracts import Instructions
 
 
-def build_mcp_client(server_url: str, api_key: str) -> Client:
+def build_mcp_client(server_url: str, api_key: str) -> Client[Any]:
     base = server_url.rstrip("/")
     return Client(f"{base}/v1/mcp/", auth=BearerAuth(api_key))
 

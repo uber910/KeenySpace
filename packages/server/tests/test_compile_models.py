@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import pytest
-from pydantic import ValidationError
-
 from keenyspace_server.compile.models import (
     CompilePlan,
     CompileStatusResponse,
     CompileTriggerResponse,
     PageOp,
 )
+from pydantic import ValidationError
 
 
 def test_pageop_happy_path() -> None:

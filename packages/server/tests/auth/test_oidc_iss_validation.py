@@ -16,7 +16,6 @@ import httpx
 import pytest
 import structlog.testing
 from joserfc.jwk import KeySet
-
 from keenyspace_server.auth.oidc import OidcClient
 from keenyspace_server.config import AuthSettings
 

@@ -143,10 +143,9 @@ async def api_key_client(app, _engine_lifespan_ctx, api_key_user):
     тестируется через default `client` fixture + integration tests против
     real composite backend.
     """
+    from keenyspace_server.auth.user import User
     from starlette.authentication import AuthCredentials, AuthenticationBackend
     from starlette.middleware.authentication import AuthenticationMiddleware
-
-    from keenyspace_server.auth.user import User
 
     user_sub, _ = api_key_user
 

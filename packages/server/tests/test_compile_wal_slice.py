@@ -3,10 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
-from ulid import ULID
-
 from keenyspace_server.compile.wal_slice import WalSlice, extract_wal_slice
 from keenyspace_server.wal.framing import format_entry
+from ulid import ULID
 
 
 def _make_entry_bytes(actor: str = "dev:test", content: str = "hello") -> tuple[ULID, bytes]:
@@ -37,9 +36,9 @@ def test_extract_wal_slice_empty_logs_dir_returns_empty(tmp_path: Path) -> None:
 def test_extract_wal_slice_last_wal_id_none_returns_all(tmp_path: Path) -> None:
     logs = tmp_path / "logs"
     logs.mkdir()
-    eid_a, ba = _make_entry_bytes(content="a")
-    eid_b, bb = _make_entry_bytes(content="b")
-    eid_c, bc = _make_entry_bytes(content="c")
+    _eid_a, ba = _make_entry_bytes(content="a")
+    _eid_b, bb = _make_entry_bytes(content="b")
+    _eid_c, bc = _make_entry_bytes(content="c")
     (logs / "2026-05-09.md").write_bytes(ba + bb)
     (logs / "2026-05-10.md").write_bytes(bc)
 
@@ -69,9 +68,9 @@ def test_extract_wal_slice_filters_by_last_wal_id(tmp_path: Path) -> None:
 def test_extract_wal_slice_multi_file_global_ordering(tmp_path: Path) -> None:
     logs = tmp_path / "logs"
     logs.mkdir()
-    eid_a, ba = _make_entry_bytes(content="a")
-    eid_b, bb = _make_entry_bytes(content="b")
-    eid_c, bc = _make_entry_bytes(content="c")
+    _eid_a, ba = _make_entry_bytes(content="a")
+    _eid_b, bb = _make_entry_bytes(content="b")
+    _eid_c, bc = _make_entry_bytes(content="c")
     (logs / "2026-05-08.md").write_bytes(bc)
     (logs / "2026-05-09.md").write_bytes(ba + bb)
 

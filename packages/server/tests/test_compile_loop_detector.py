@@ -3,13 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic_ai.exceptions import UsageLimitExceeded
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
-from pydantic_ai.models.function import AgentInfo, FunctionModel
-
 from keenyspace_server.compile.agent import compile_agent, run_compile_agent
 from keenyspace_server.compile.loop_detector import LoopDetector
 from keenyspace_server.compile.models import CompileDeps
+from pydantic_ai.exceptions import UsageLimitExceeded
+from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 
 def test_loop_detector_default_max_repeats() -> None:
@@ -32,9 +31,11 @@ async def test_loop_detector_aborts_on_repeated_tool_call(tmp_path: Path) -> Non
     (tmp_path / "notes" / "index.md").write_text("# Index\n")
     deps = CompileDeps(ws_root=tmp_path, wal_text="<wal_entry id='X'>data</wal_entry>")
     detector = LoopDetector(max_repeats=3)
-    with compile_agent.override(model=FunctionModel(_looping_model_factory())):
-        with pytest.raises((UsageLimitExceeded, Exception)):  # noqa: PT011
-            await run_compile_agent(deps, max_tool_calls=10, loop_detector=detector)
+    with (
+        compile_agent.override(model=FunctionModel(_looping_model_factory())),
+        pytest.raises((UsageLimitExceeded, Exception)),
+    ):
+        await run_compile_agent(deps, max_tool_calls=10, loop_detector=detector)
     assert detector.triggered is True
 
 

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-
 from keenyspace_server.compile.scheduler import build_scheduler
 
 

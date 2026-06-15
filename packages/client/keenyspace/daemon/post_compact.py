@@ -18,7 +18,7 @@ import sys
 from typing import Any
 
 import structlog
-from keenyspace_shared.mcp_contracts import (  # type: ignore[import-untyped]
+from keenyspace_shared.mcp_contracts import (
     PostCompactInjection,
 )
 

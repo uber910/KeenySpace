@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 
-
 PG_URL = os.environ.get("KEENYSPACE_DB__URL")
 SERVER_DIR = Path(__file__).parent.parent
 
@@ -21,6 +20,7 @@ def test_alembic_upgrade_creates_compile_runs_and_workspace_columns() -> None:
     assert up.returncode == 0, up.stderr
 
     import asyncio
+
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import create_async_engine
 
@@ -51,6 +51,7 @@ def test_alembic_downgrade_reverts_phase2() -> None:
     assert down.returncode == 0, down.stderr
 
     import asyncio
+
     from sqlalchemy import text
     from sqlalchemy.ext.asyncio import create_async_engine
 

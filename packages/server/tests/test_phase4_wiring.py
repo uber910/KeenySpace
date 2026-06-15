@@ -30,7 +30,6 @@ async def test_build_mcp_registers_eleven_tools() -> None:
 
 def test_router_stubs_importable() -> None:
     import fastapi
-
     from keenyspace_server.api.workspace_archive import router as archive_router
     from keenyspace_server.api.workspace_export import router as export_router
     from keenyspace_server.api.workspace_import import router as import_router

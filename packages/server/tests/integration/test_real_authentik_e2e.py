@@ -94,7 +94,7 @@ def get_ks_access_token(base_url: str) -> str:
 
 
 @pytest.fixture(scope="session")
-def authentik_stack() -> Generator[str, None, None]:
+def authentik_stack() -> Generator[str]:
     from testcontainers.compose import DockerCompose
     from testcontainers.core.wait_strategies import HttpWaitStrategy
 
@@ -140,7 +140,7 @@ async def test_trailing_slash_iss_validates_end_to_end(authentik_stack: str) -> 
     padded = header_b64 + "=" * (-len(header_b64) % 4)
     import json
 
-    header = json.loads(base64.urlsafe_b64decode(padded))
+    _header = json.loads(base64.urlsafe_b64decode(padded))
     payload_b64 = access_token.split(".")[1]
     padded2 = payload_b64 + "=" * (-len(payload_b64) % 4)
     claims = json.loads(base64.urlsafe_b64decode(padded2))
@@ -154,7 +154,7 @@ async def test_trailing_slash_iss_validates_end_to_end(authentik_stack: str) -> 
     )
 
     from keenyspace_server.auth.oidc import OidcClient, build_oauth
-    from keenyspace_server.config import AuthSettings, Settings, get_settings
+    from keenyspace_server.config import get_settings
 
     get_settings.cache_clear()
 
