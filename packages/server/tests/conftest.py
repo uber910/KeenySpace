@@ -22,6 +22,40 @@ def pytest_configure(config):  # type: ignore[no-untyped-def]
     )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_auth_env():
+    """Provide test auth/OIDC settings for the whole session.
+
+    Settings.auth is required (Phase 3). Standalone tests that build the app or
+    spawn a subprocess (alembic, uvicorn) without the function-scoped app_env
+    fixture would otherwise fail Settings validation with "auth Field required".
+    Set via os.environ (not monkeypatch) so child processes inherit it; tests
+    that assert missing-auth behavior delenv these keys locally and still pass.
+    """
+    import os
+    import tempfile
+
+    # build_app() / the uvicorn subprocess default Settings.fs.root to
+    # /var/lib/keenyspace, which is not writable on the CI runner or a dev
+    # laptop. Point it at a session temp dir for standalone tests that bypass
+    # app_env (which sets its own per-test fs_root).
+    os.environ.setdefault(
+        "KEENYSPACE_FS__ROOT", tempfile.mkdtemp(prefix="ks-session-fs-")
+    )
+
+    defaults = {
+        "KEENYSPACE_AUTH__OIDC_ISSUER_URL": "http://localhost:9999/application/o/test/",
+        "KEENYSPACE_AUTH__OIDC_CLIENT_ID": "test-client",
+        "KEENYSPACE_AUTH__OIDC_CLIENT_SECRET": "test-secret",
+        "KEENYSPACE_AUTH__OIDC_REDIRECT_URI": "http://localhost:8000/v1/api/auth/callback",
+        "KEENYSPACE_AUTH__OIDC_POST_LOGOUT_REDIRECT_URI": "http://localhost:8000/",
+        "KEENYSPACE_AUTH__API_KEY_PEPPER": "test-pepper-32chars-padded-here!",
+        "KEENYSPACE_AUTH__SESSION_SECRET_KEY": "test-session-secret-32chars-pad!",
+    }
+    for key, value in defaults.items():
+        os.environ.setdefault(key, value)
+
+
 @pytest.fixture
 def fs_root(tmp_path):
     root = tmp_path / "fs_root"

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 from logging.config import fileConfig
 
 from alembic import context
@@ -16,8 +17,12 @@ if config.config_file_name is not None:
 from keenyspace_server.config import Settings  # noqa: E402
 from keenyspace_server.db.models import Base  # noqa: E402
 
-settings = Settings()  # type: ignore[call-arg]
-config.set_main_option("sqlalchemy.url", str(settings.db.url))
+# Migrations only need the DB URL. Constructing the full Settings would
+# also demand the auth/OIDC secrets, which a migration run has no business
+# requiring. Prefer the env var (present in every deployment and in CI) and
+# fall back to the full Settings only when it is absent.
+_db_url = os.environ.get("KEENYSPACE_DB__URL") or str(Settings().db.url)  # type: ignore[call-arg]
+config.set_main_option("sqlalchemy.url", _db_url)
 
 target_metadata = Base.metadata
 

@@ -44,8 +44,12 @@ def test_alembic_upgrade_creates_compile_runs_and_workspace_columns() -> None:
 def test_alembic_downgrade_reverts_phase2() -> None:
     env = {**os.environ, "KEENYSPACE_DB__URL": PG_URL}
     subprocess.run(["uv", "run", "alembic", "upgrade", "head"], cwd=SERVER_DIR, env=env, check=True)
+    # Revert to the pre-phase-2 baseline (0001). A relative "-1" would only
+    # undo whatever currently sits at head (now 0003/auth), leaving the phase-2
+    # compile_runs table in place; target the baseline revision explicitly so
+    # this stays correct as later migrations are added.
     down = subprocess.run(
-        ["uv", "run", "alembic", "downgrade", "-1"],
+        ["uv", "run", "alembic", "downgrade", "0001"],
         cwd=SERVER_DIR, env=env, capture_output=True, text=True,
     )
     assert down.returncode == 0, down.stderr
