@@ -44,7 +44,14 @@ async def _wait_for_server(url: str, timeout: float = 30.0) -> None:
 @pytest.mark.timeout(60)
 @pytest.mark.asyncio
 async def test_ping_two_calls_same_boot() -> None:
+    import os
+
     port = _find_free_port()
+    # This smoke test targets the auth-less skeleton app and its stub `ping`
+    # tool. main:app resolves to the full (auth-guarded) app when
+    # KEENYSPACE_DB__URL is set, so strip it from the child env to select the
+    # skeleton build.
+    child_env = {k: v for k, v in os.environ.items() if k != "KEENYSPACE_DB__URL"}
     proc = subprocess.Popen(
         [
             sys.executable,
@@ -58,6 +65,7 @@ async def test_ping_two_calls_same_boot() -> None:
         ],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
+        env=child_env,
     )
     try:
         await _wait_for_server(f"http://127.0.0.1:{port}/healthz")

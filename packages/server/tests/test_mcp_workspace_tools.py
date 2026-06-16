@@ -413,13 +413,16 @@ async def test_get_workspace_info_missing_raises_tool_error(tmp_path) -> None:
         transport = StreamableHttpTransport(
             f"http://127.0.0.1:{port}/v1/mcp/", headers=headers
         )
+        from fastmcp.exceptions import ToolError
+
         async with Client(transport) as mcp_client:
-            result = await mcp_client.call_tool(
-                "get_workspace_info", {"workspace": "does-not-exist-xyz"}
-            )
-            result_str = str(result)
-            assert "not found" in result_str or "error" in result_str.lower(), (
-                f"Expected error for missing workspace, got: {result_str}"
+            with pytest.raises(ToolError) as exc_info:
+                await mcp_client.call_tool(
+                    "get_workspace_info", {"workspace": "does-not-exist-xyz"}
+                )
+            message = str(exc_info.value).lower()
+            assert "not found" in message or "error" in message, (
+                f"Expected error for missing workspace, got: {exc_info.value!r}"
             )
 
     finally:

@@ -56,6 +56,23 @@ def _ensure_auth_env():
         os.environ.setdefault(key, value)
 
 
+@pytest.fixture(autouse=True)
+def _reset_structlog():
+    """Reset structlog before each test.
+
+    The app configures structlog with cache_logger_on_first_use=True during
+    boot. Once a module-level logger is cached with the real processor chain,
+    structlog.testing.capture_logs() can no longer intercept it, so log-event
+    assertions (e.g. test_ws_blueprints) silently fail when an earlier test
+    booted the app. Resetting clears the cache and config so each test starts
+    clean; app-booting tests reconfigure during their lifespan.
+    """
+    import structlog
+
+    structlog.reset_defaults()
+    yield
+
+
 @pytest.fixture
 def fs_root(tmp_path):
     root = tmp_path / "fs_root"
