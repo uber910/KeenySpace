@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 from uuid import uuid4
 
 import pytest
@@ -44,9 +44,8 @@ def test_unarchive_workspace_is_coroutine() -> None:
 
 @pytest.mark.asyncio
 async def test_archive_workspace_raises_conflict_when_no_rows(tmp_path: Path) -> None:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from keenyspace_server.ws.archive import ArchiveConflictError, archive_workspace
+    from sqlalchemy.ext.asyncio import AsyncSession
 
     mock_session = AsyncMock(spec=AsyncSession)
     mock_result = MagicMock()
@@ -65,9 +64,8 @@ async def test_archive_workspace_raises_conflict_when_no_rows(tmp_path: Path) ->
 
 @pytest.mark.asyncio
 async def test_unarchive_workspace_raises_conflict_when_no_rows(tmp_path: Path) -> None:
-    from sqlalchemy.ext.asyncio import AsyncSession
-
     from keenyspace_server.ws.archive import ArchiveConflictError, unarchive_workspace
+    from sqlalchemy.ext.asyncio import AsyncSession
 
     mock_session = AsyncMock(spec=AsyncSession)
     mock_result = MagicMock()
@@ -85,10 +83,10 @@ async def test_unarchive_workspace_raises_conflict_when_no_rows(tmp_path: Path) 
 
 
 def test_mirror_archived_at_to_config_writes_archived_at(tmp_path: Path) -> None:
-    import yaml
-
-    from keenyspace_server.ws.archive import _mirror_archived_at_to_config
     from datetime import UTC, datetime
+
+    import yaml
+    from keenyspace_server.ws.archive import _mirror_archived_at_to_config
 
     config_dir = tmp_path / ".keenyspace"
     config_dir.mkdir()
@@ -105,10 +103,9 @@ def test_mirror_archived_at_to_config_writes_archived_at(tmp_path: Path) -> None
 
 
 def test_mirror_archived_at_to_config_removes_archived_at_on_none(tmp_path: Path) -> None:
-    import yaml
 
+    import yaml
     from keenyspace_server.ws.archive import _mirror_archived_at_to_config
-    from datetime import UTC, datetime
 
     config_dir = tmp_path / ".keenyspace"
     config_dir.mkdir()
@@ -123,8 +120,9 @@ def test_mirror_archived_at_to_config_removes_archived_at_on_none(tmp_path: Path
 
 
 def test_mirror_archived_at_swallows_missing_config(tmp_path: Path) -> None:
-    from keenyspace_server.ws.archive import _mirror_archived_at_to_config
     from datetime import UTC, datetime
+
+    from keenyspace_server.ws.archive import _mirror_archived_at_to_config
 
     now = datetime.now(UTC)
     _mirror_archived_at_to_config(tmp_path / "nonexistent_ws", now)

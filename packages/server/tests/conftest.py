@@ -22,6 +22,76 @@ def pytest_configure(config):  # type: ignore[no-untyped-def]
     )
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _ensure_auth_env():
+    """Provide test auth/OIDC settings for the whole session.
+
+    Settings.auth is required (Phase 3). Standalone tests that build the app or
+    spawn a subprocess (alembic, uvicorn) without the function-scoped app_env
+    fixture would otherwise fail Settings validation with "auth Field required".
+    Set via os.environ (not monkeypatch) so child processes inherit it; tests
+    that assert missing-auth behavior delenv these keys locally and still pass.
+    """
+    import os
+    import tempfile
+
+    # build_app() / the uvicorn subprocess default Settings.fs.root to
+    # /var/lib/keenyspace, which is not writable on the CI runner or a dev
+    # laptop. Point it at a session temp dir for standalone tests that bypass
+    # app_env (which sets its own per-test fs_root).
+    os.environ.setdefault(
+        "KEENYSPACE_FS__ROOT", tempfile.mkdtemp(prefix="ks-session-fs-")
+    )
+
+    defaults = {
+        "KEENYSPACE_AUTH__OIDC_ISSUER_URL": "http://localhost:9999/application/o/test/",
+        "KEENYSPACE_AUTH__OIDC_CLIENT_ID": "test-client",
+        "KEENYSPACE_AUTH__OIDC_CLIENT_SECRET": "test-secret",
+        "KEENYSPACE_AUTH__OIDC_REDIRECT_URI": "http://localhost:8000/v1/api/auth/callback",
+        "KEENYSPACE_AUTH__OIDC_POST_LOGOUT_REDIRECT_URI": "http://localhost:8000/",
+        "KEENYSPACE_AUTH__API_KEY_PEPPER": "test-pepper-32chars-padded-here!",
+        "KEENYSPACE_AUTH__SESSION_SECRET_KEY": "test-session-secret-32chars-pad!",
+    }
+    for key, value in defaults.items():
+        os.environ.setdefault(key, value)
+
+
+@pytest.fixture(autouse=True)
+def _reset_structlog():
+    """Reset structlog before each test.
+
+    The app configures structlog with cache_logger_on_first_use=True during
+    boot. Once a module-level logger is cached with the real processor chain,
+    structlog.testing.capture_logs() can no longer intercept it, so log-event
+    assertions (e.g. test_ws_blueprints) silently fail when an earlier test
+    booted the app. Resetting clears the cache and config so each test starts
+    clean; app-booting tests reconfigure during their lifespan.
+    """
+    import contextlib
+    import sys
+
+    import structlog
+
+    structlog.reset_defaults()
+    # reset_defaults() restores config but does NOT clear loggers already cached
+    # on module-level lazy proxies (the app boots with
+    # cache_logger_on_first_use=True). On first use the proxy caches both the
+    # bound logger (_logger) and its bound methods (warning/info/... as public
+    # instance attributes), bypassing later reconfiguration — so capture_logs()
+    # can no longer intercept it. Drop both caches on every loaded keenyspace
+    # module logger.
+    for module in list(sys.modules.values()):
+        candidate = getattr(module, "log", None)
+        if candidate is None or not hasattr(candidate, "_cache_logger_on_first_use"):
+            continue
+        for attr in [a for a in vars(candidate) if not a.startswith("_")]:
+            with contextlib.suppress(AttributeError):
+                delattr(candidate, attr)
+        with contextlib.suppress(AttributeError, TypeError):
+            candidate._logger = None
+    yield
+
+
 @pytest.fixture
 def fs_root(tmp_path):
     root = tmp_path / "fs_root"
@@ -143,10 +213,9 @@ async def api_key_client(app, _engine_lifespan_ctx, api_key_user):
     тестируется через default `client` fixture + integration tests против
     real composite backend.
     """
+    from keenyspace_server.auth.user import User
     from starlette.authentication import AuthCredentials, AuthenticationBackend
     from starlette.middleware.authentication import AuthenticationMiddleware
-
-    from keenyspace_server.auth.user import User
 
     user_sub, _ = api_key_user
 

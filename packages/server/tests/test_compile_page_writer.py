@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-
 from keenyspace_server.compile.models import CompilePlan, PageOp
 from keenyspace_server.compile.page_writer import (
     CompilePlanSafetyError,

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from prometheus_client import REGISTRY
-
 from keenyspace_server.observability.metrics import (
     COMPILE_DAILY_TOKENS,
     COMPILE_PAGES_WRITTEN_TOTAL,
@@ -10,6 +8,7 @@ from keenyspace_server.observability.metrics import (
     COMPILE_RUNS_TOTAL,
     COMPILE_TOKENS_TOTAL,
 )
+from prometheus_client import REGISTRY
 
 
 def test_six_phase_2_metrics_exist_with_correct_names() -> None:

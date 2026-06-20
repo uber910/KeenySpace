@@ -474,7 +474,7 @@ async def test_search_workspace_filename_match(tmp_path) -> None:
 @pytest.mark.slow
 @pytest.mark.asyncio
 @pytest.mark.skipif(not PG_URL, reason="postgres unavailable; KEENYSPACE_DB__URL not set")
-async def test_search_workspace_invalid_regex_rejected(tmp_path) -> None:
+async def test_search_workspace_regex_chars_treated_literally(tmp_path) -> None:
     import httpx
     from fastmcp import Client
     from fastmcp.client.transports import StreamableHttpTransport
@@ -515,14 +515,14 @@ async def test_search_workspace_invalid_regex_rejected(tmp_path) -> None:
 
         transport = StreamableHttpTransport(f"http://127.0.0.1:{port}/v1/mcp/", headers=headers)
         async with Client(transport) as mcp_client:
-            try:
-                res = await mcp_client.call_tool(
-                    "search_workspace", {"workspace": slug, "query": "["}
-                )
-                is_error = getattr(res, "is_error", False)
-                assert is_error, f"expected error result, got {res}"
-            except Exception as exc:
-                assert "regex" in str(exc).lower() or "invalid" in str(exc).lower() or "search" in str(exc).lower()
+            # WR-08: search treats the query as a literal substring (regex
+            # semantics were removed to close a ReDoS surface), so a
+            # regex-special character must be handled safely and neither raise
+            # nor return an error result.
+            res = await mcp_client.call_tool(
+                "search_workspace", {"workspace": slug, "query": "["}
+            )
+            assert not getattr(res, "is_error", False), f"unexpected error: {res}"
     finally:
         proc.send_signal(signal.SIGTERM)
         proc.wait(timeout=10)

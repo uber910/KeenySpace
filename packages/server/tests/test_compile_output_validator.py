@@ -3,11 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
-from pydantic_ai.models.function import AgentInfo, FunctionModel
-
 from keenyspace_server.compile.agent import compile_agent, run_compile_agent
 from keenyspace_server.compile.models import CompileDeps, CompilePlan, PageOp
+from pydantic_ai.messages import ModelMessage, ModelResponse, ToolCallPart
+from pydantic_ai.models.function import AgentInfo, FunctionModel
 
 
 def _model_returns(plan: CompilePlan):  # type: ignore[no-untyped-def]
@@ -56,11 +55,11 @@ async def test_output_validator_passes_clean_plan(tmp_path: Path) -> None:
 def test_validator_constants_match_path_safety_denylist(denied_path: str) -> None:
     """Defense-in-depth invariant: agent.py's denylist constants and
     fs/path_safety.py::is_compile_writable must reject the same set of paths."""
-    from keenyspace_server.fs.path_safety import is_compile_writable
     from keenyspace_server.compile.agent import (
         _COMPILE_DENYLIST_EXACT,
         _COMPILE_DENYLIST_PREFIXES,
     )
+    from keenyspace_server.fs.path_safety import is_compile_writable
     assert is_compile_writable(Path("/tmp"), denied_path) is False
     rejected = (
         any(denied_path.startswith(p) for p in _COMPILE_DENYLIST_PREFIXES)

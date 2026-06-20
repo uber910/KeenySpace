@@ -8,7 +8,6 @@ import stat
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
 import yaml
 from pytest_httpserver import HTTPServer
 from typer.testing import CliRunner

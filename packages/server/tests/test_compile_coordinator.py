@@ -4,7 +4,6 @@ from pathlib import Path
 from uuid import UUID, uuid4
 
 import pytest
-
 from keenyspace_server.compile.coordinator import (
     CompileCoordinator,
     get_coordinator,

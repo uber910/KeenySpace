@@ -1,11 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 from pathlib import Path
 from uuid import uuid4
 
 import pytest
-
 from keenyspace_server.compile.coordinator import (
     CompileCoordinator,
     get_coordinator,
@@ -64,10 +62,10 @@ async def test_wal_writer_calls_notify_dirty_outside_lock(tmp_path: Path, monkey
     set_coordinator(c)
 
     class _FakeSettings:
-        class wal:
+        class wal:  # noqa: N801 - mimics settings.wal attribute path
             max_entry_bytes = 256 * 1024
 
-        class auth:
+        class auth:  # noqa: N801 - mimics settings.auth attribute path
             multi_worker = False
 
         compile = CompileSettings()
@@ -98,10 +96,10 @@ async def test_wal_writer_no_op_when_coordinator_singleton_none(tmp_path: Path) 
     assert get_coordinator() is None
 
     class _FakeSettings:
-        class wal:
+        class wal:  # noqa: N801 - mimics settings.wal attribute path
             max_entry_bytes = 256 * 1024
 
-        class auth:
+        class auth:  # noqa: N801 - mimics settings.auth attribute path
             multi_worker = False
 
         compile = CompileSettings()

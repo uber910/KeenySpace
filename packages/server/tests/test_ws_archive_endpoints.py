@@ -1,8 +1,6 @@
 """RED tests for api/workspace_archive.py HTTP endpoints."""
 from __future__ import annotations
 
-import pytest
-
 
 def test_archive_router_importable() -> None:
     from keenyspace_server.api.workspace_archive import router

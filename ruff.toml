@@ -17,6 +17,11 @@ select = [
 ]
 ignore = [
     "E501",
+    # Codebase comments/docstrings are bilingual (Russian); Cyrillic letters
+    # that visually resemble Latin are intentional, not typos.
+    "RUF001",
+    "RUF002",
+    "RUF003",
 ]
 
 [lint.per-file-ignores]

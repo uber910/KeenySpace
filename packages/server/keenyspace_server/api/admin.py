@@ -159,39 +159,47 @@ async def admin_backup(
     alembic_head = await _current_alembic_head(session)
     db_url = settings.db.url
 
+    tmp_dir = fs_root / "tmp" / f"backup-{secrets.token_hex(8)}"
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    pg_dump_path = tmp_dir / "pg_dump.sql"
+    # pg_dump runs BEFORE the StreamingResponse is returned: a failure raised
+    # inside the streaming generator cannot un-send the 200 + headers already on
+    # the wire, so the client would receive a silently-empty "successful" backup
+    # (e.g. a pg_dump client older than the server). Surface it as a real 500.
+    try:
+        # WR-02: stream pg_dump stdout to disk in chunks instead of buffering
+        # the whole dump into a single bytes object. A multi-GB production
+        # database would otherwise pin O(dump_size) RSS in the worker process
+        # and risk OOM kills mid-backup.
+        proc = await asyncio.create_subprocess_exec(
+            *_pg_dump_argv(db_url),
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env=_pg_env(db_url),
+        )
+        assert proc.stdout is not None
+        assert proc.stderr is not None
+        with pg_dump_path.open("wb") as pg_fp:
+            while True:
+                pg_chunk = await proc.stdout.read(UPLOAD_CHUNK_BYTES)
+                if not pg_chunk:
+                    break
+                pg_fp.write(pg_chunk)
+        pg_err = await proc.stderr.read()
+        await proc.wait()
+        if proc.returncode != 0:
+            log.error(
+                "admin.backup.pg_dump_failed",
+                stderr=pg_err.decode(errors="replace"),
+            )
+            raise HTTPException(500, {"error": "pg_dump_failed"})
+    except BaseException:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
+        raise
+
     async def _stream() -> Any:
-        tmp_dir = fs_root / "tmp" / f"backup-{secrets.token_hex(8)}"
-        tmp_dir.mkdir(parents=True, exist_ok=True)
-        pg_dump_path = tmp_dir / "pg_dump.sql"
         total_bytes = 0
         try:
-            # WR-02: stream pg_dump stdout to disk in chunks instead of
-            # buffering the whole dump into a single bytes object. A
-            # multi-GB production database would otherwise pin O(dump_size)
-            # RSS in the worker process and risk OOM kills mid-backup.
-            proc = await asyncio.create_subprocess_exec(
-                *_pg_dump_argv(db_url),
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-                env=_pg_env(db_url),
-            )
-            assert proc.stdout is not None
-            assert proc.stderr is not None
-            with pg_dump_path.open("wb") as pg_fp:
-                while True:
-                    pg_chunk = await proc.stdout.read(UPLOAD_CHUNK_BYTES)
-                    if not pg_chunk:
-                        break
-                    pg_fp.write(pg_chunk)
-            pg_err = await proc.stderr.read()
-            await proc.wait()
-            if proc.returncode != 0:
-                log.error(
-                    "admin.backup.pg_dump_failed",
-                    stderr=pg_err.decode(errors="replace"),
-                )
-                raise HTTPException(500, {"error": "pg_dump_failed"})
-
             workspaces_dir = fs_root / "workspaces"
             ws_uuids = (
                 sorted(d.name for d in workspaces_dir.iterdir() if d.is_dir())
@@ -388,21 +396,24 @@ async def admin_restore(
         manifest = BackupManifest.model_validate_json(manifest_path.read_text())
 
         try:
-            source = _semver.VersionInfo.parse(manifest.keenyspace_version)
-            target = _semver.VersionInfo.parse(KS_VERSION)
+            source_version = _semver.VersionInfo.parse(manifest.keenyspace_version)
+            target_version = _semver.VersionInfo.parse(KS_VERSION)
         except ValueError as exc:
             ADMIN_RESTORE_TOTAL.labels(outcome="bad_version").inc()
             raise HTTPException(
                 422, {"error": "bad_version", "detail": str(exc)}
             ) from exc
-        if (source.major, source.minor) != (target.major, target.minor) and not force:
+        if (source_version.major, source_version.minor) != (
+            target_version.major,
+            target_version.minor,
+        ) and not force:
             ADMIN_RESTORE_TOTAL.labels(outcome="version_mismatch").inc()
             raise HTTPException(
                 422,
                 {
                     "error": "version_mismatch",
-                    "source": str(source),
-                    "target": str(target),
+                    "source": str(source_version),
+                    "target": str(target_version),
                 },
             )
         current_head = await _current_alembic_head(session)
