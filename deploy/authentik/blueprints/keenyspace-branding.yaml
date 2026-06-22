@@ -1,0 +1,30 @@
+# Authentik blueprint — KeenySpace visual branding (logo / favicon / background).
+#
+# Deliberately SEPARATE from keenyspace.yaml: blueprint apply is atomic, so an
+# invalid asset path here can only roll back this file — never the OIDC provider
+# in keenyspace.yaml. It patches the same default brand (domain authentik-default).
+#
+# Asset delivery (see deploy/docker-compose.yml):
+#   ./authentik/blueprints/branding  ->  /data/media/public/keeny  (ro)
+# so each file is served at /media/public/keeny/<name>. The branding FileField
+# storage is already rooted at media/public/, and the brand serializer prepends
+# that prefix itself (-> /files/media/public/<value>?token=...). So the value here
+# MUST be relative to public/ (i.e. keeny/<name>); including a leading "public/"
+# yields a double public/public path and a 404. The FileField validator
+# (authentik/admin/files/validation.py) enforces ^[a-zA-Z0-9._/-]+$ and rejects
+# absolute paths (leading slash) and URLs (colon) — so values stay relative,
+# no leading slash.
+version: 1
+metadata:
+  name: keenyspace-branding
+  labels:
+    blueprints.goauthentik.io/instance: keenyspace-branding
+entries:
+  - model: authentik_brands.brand
+    state: present
+    identifiers:
+      domain: authentik-default
+    attrs:
+      branding_logo: keeny/keeny-white.svg
+      branding_favicon: keeny/favicon.svg
+      branding_default_flow_background: keeny/logo-full-red-bg.svg

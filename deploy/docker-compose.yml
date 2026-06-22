@@ -107,6 +107,12 @@ services:
       # bind into the :ro blueprints mount fails (read-only parent), so the
       # single blueprints mount carries them.
       - ./authentik/blueprints:/blueprints/custom:ro
+      # Same assets served as media so the brand can reference them. Files land
+      # at /data/media/public/keeny/<name>; the branding FileField storage is
+      # rooted at media/public/, so brand values are relative to that (keeny/<name>)
+      # and the serializer prepends public/ itself. The validator rejects leading
+      # slashes / absolute paths, so values stay relative under MEDIA_ROOT.
+      - ./authentik/blueprints/branding:/data/media/public/keeny:ro
     ports:
       - "9000:9000"
       - "9443:9443"
@@ -138,6 +144,9 @@ services:
       - authentik-templates:/templates
       - authentik-certs:/certs
       - ./authentik/blueprints:/blueprints/custom:ro
+      # Worker applies blueprints; mount branding into media here too so the
+      # referenced files exist when the brand entry is validated/applied.
+      - ./authentik/blueprints/branding:/data/media/public/keeny:ro
     depends_on:
       authentik-postgresql:
         condition: service_healthy
