@@ -86,12 +86,19 @@ async def serve() -> None:
     try:
         async with server:
             serve_task = asyncio.create_task(server.serve_forever())
+            # Implicit-capture write path: poll Claude transcripts and ingest
+            # deltas into the WAL, independent of hooks (background task).
+            from keenyspace.daemon.session_reader import run_transcript_reader
+
+            reader_task = asyncio.create_task(run_transcript_reader(stop_event))
             await stop_event.wait()
             serve_task.cancel()
-            try:  # noqa: SIM105 — await cannot live inside contextlib.suppress
-                await serve_task
-            except asyncio.CancelledError:
-                pass
+            reader_task.cancel()
+            for task in (serve_task, reader_task):
+                try:  # noqa: SIM105 — await cannot live inside contextlib.suppress
+                    await task
+                except asyncio.CancelledError:
+                    pass
     finally:
         DAEMON_SOCK.unlink(missing_ok=True)
         DAEMON_PID.unlink(missing_ok=True)
