@@ -116,13 +116,43 @@ def login_cmd(
     server_url: str | None = typer.Option(
         None, "--server-url", help="Override config.yaml server_url for this login."
     ),
+    pat: bool = typer.Option(
+        False,
+        "--pat",
+        help="Log in with a personal access token (prompts) instead of the device flow.",
+    ),
+    token: str | None = typer.Option(
+        None,
+        "--token",
+        help="Personal access token for non-interactive login (implies --pat).",
+    ),
 ) -> None:
-    """Run Authentik device-code flow and persist token to auth.json (mode 0600)."""
+    """Log in via Authentik device-code flow, or with a personal access token (--pat)."""
     import asyncio
+
+    if pat or token:
+        from keenyspace.cli.login import run_login_pat
+
+        tok = token or typer.prompt("Personal access token", hide_input=True)
+        asyncio.run(run_login_pat(token=tok, server_url=server_url))
+        return
 
     from keenyspace.cli.login import run_login
 
     asyncio.run(run_login(server_url=server_url))
+
+
+@app.command(name="token")
+def token_cmd(
+    name: str = typer.Option(..., "--name", "-n", help="Label for the new token."),
+    server_url: str | None = typer.Option(None, "--server-url"),
+) -> None:
+    """Mint a personal access token (ks_live_*) via the current login; shown once."""
+    import asyncio
+
+    from keenyspace.cli.login import run_token_create
+
+    asyncio.run(run_token_create(name=name, server_url=server_url))
 
 
 @app.command(name="logout")
