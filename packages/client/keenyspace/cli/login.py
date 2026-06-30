@@ -165,13 +165,16 @@ async def _refresh_tokens(payload: dict[str, Any]) -> dict[str, Any] | None:
     return body
 
 
-async def ensure_token() -> str | None:
+async def ensure_token(*, interactive: bool = True) -> str | None:
     """Return a usable bearer for a CLI command, refreshing/logging in if stale.
 
     - ``ks_live_*`` API keys never expire -> returned as-is.
     - A fresh OIDC access token -> returned as-is.
     - A stale/missing access token -> silent refresh via refresh_token; if that
       is unavailable or rejected, fall back to interactive device login.
+
+    ``interactive=False`` (headless contexts, e.g. the daemon) stops before the
+    device-flow fallback and returns None instead of blocking on a browser login.
     """
     payload = read_auth()
     api_key = payload.get("api_key")
@@ -198,6 +201,9 @@ async def ensure_token() -> str | None:
         )
         token: str = refreshed["access_token"]
         return token
+
+    if not interactive:
+        return None
 
     await run_login(server_url=None)
     new_token = read_auth().get("access_token")

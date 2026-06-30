@@ -164,7 +164,9 @@ async def _default_ingest(slug: str, text: str, source_path: str) -> None:
     from keenyspace.config import get_client_settings
 
     settings = get_client_settings()
-    api_key = await ensure_token()
+    # Headless: never fall back to the interactive device flow (it would block the
+    # poll loop). No durable/refreshable credential -> skip this tick's ingest.
+    api_key = await ensure_token(interactive=False)
     if not api_key:
         log.warning("session_reader.no_token", workspace=slug)
         return
