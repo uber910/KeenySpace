@@ -191,11 +191,13 @@ async def _default_ingest(slug: str, text: str, source_path: str) -> None:
 
 async def _tick(
     cursors: dict[str, int],
+    buffers: dict[str, str],
     *,
     projects_dir: Path,
     ingest_fn: IngestFn,
     resolve_fn: ResolveFn,
     min_delta_chars: int,
+    max_delta_bytes: int = MAX_DELTA_BYTES,
 ) -> None:
     if not projects_dir.is_dir():
         return
@@ -219,23 +221,40 @@ async def _tick(
                 # Unregistered cwd: skip forward so we never reprocess it.
                 cursors[key] = size
                 continue
-            raw, new_offset = await asyncio.to_thread(_read_delta, transcript, offset)
-            extracted = _extract_text(raw)
-            if len(extracted) < min_delta_chars:
-                # Too little new content: leave the cursor so it accumulates.
+
+            raw, new_offset = await asyncio.to_thread(
+                _read_delta, transcript, offset, max_delta_bytes
+            )
+            if new_offset <= offset:
+                # No complete line within the cap. A single record larger than the
+                # cap (huge tool_result / snapshot) would otherwise wedge the file
+                # forever -- skip past it so the reader keeps draining.
+                if size - offset > max_delta_bytes:
+                    cursors[key] = offset + max_delta_bytes
+                    log.warning("session_reader.oversized_record_skipped", file=key)
                 continue
+
+            # Advance past the consumed window regardless of text density, so a
+            # window dominated by non-text records never wedges the cursor. Human/
+            # assistant text is buffered across windows until it is worth an ingest,
+            # so low-text windows don't drop signal.
+            extracted = _extract_text(raw)
+            cursors[key] = new_offset
+            if extracted:
+                buffers[key] = (buffers.get(key, "") + "\n" + extracted).strip()
+            if len(buffers.get(key, "")) < min_delta_chars:
+                continue
+
+            text = buffers[key]
             try:
-                await ingest_fn(slug, extracted, key)
+                await ingest_fn(slug, text, key)
             except Exception as exc:  # one bad session must not stall the loop
+                # Keep the buffer (cursor already advanced) so the text is retried,
+                # not lost, on the next tick.
                 log.warning("session_reader.ingest_failed", file=key, error=str(exc))
                 continue
-            cursors[key] = new_offset
-            log.info(
-                "session_reader.ingested",
-                workspace=slug,
-                file=key,
-                chars=len(extracted),
-            )
+            buffers[key] = ""
+            log.info("session_reader.ingested", workspace=slug, file=key, chars=len(text))
 
 
 async def run_transcript_reader(
@@ -254,11 +273,15 @@ async def run_transcript_reader(
     pdir = projects_dir or _claude_projects_dir()
     cpath = cursors_path or paths.INGEST_CURSORS
     cursors = _load_cursors(cpath)
+    # Per-file extracted-text buffers, in-memory: accumulate low-text windows
+    # across ticks so signal isn't dropped while the cursor keeps advancing.
+    buffers: dict[str, str] = {}
     log.info("session_reader.started", projects_dir=str(pdir), interval=interval_seconds)
     while not stop_event.is_set():
         try:
             await _tick(
                 cursors,
+                buffers,
                 projects_dir=pdir,
                 ingest_fn=fn,
                 resolve_fn=resolver,

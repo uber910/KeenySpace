@@ -76,6 +76,7 @@ async def test_tick_ingests_registered_session(tmp_path: Path) -> None:
     cursors: dict[str, int] = {}
     await _tick(
         cursors,
+        {},
         projects_dir=projects,
         ingest_fn=fake_ingest,
         resolve_fn=_registered,
@@ -100,6 +101,7 @@ async def test_tick_skips_unregistered_without_ingest(tmp_path: Path) -> None:
     cursors: dict[str, int] = {}
     await _tick(
         cursors,
+        {},
         projects_dir=projects,
         ingest_fn=fake_ingest,
         resolve_fn=_unregistered,
@@ -111,7 +113,7 @@ async def test_tick_skips_unregistered_without_ingest(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_tick_below_threshold_does_not_ingest_or_advance(tmp_path: Path) -> None:
+async def test_tick_below_threshold_buffers_and_advances(tmp_path: Path) -> None:
     projects = tmp_path / "projects"
     body = _transcript("/Users/dmitrydankov/BSW", [("user", "tiny")])
     f = _write_session(projects, "s1.jsonl", body)
@@ -121,12 +123,44 @@ async def test_tick_below_threshold_does_not_ingest_or_advance(tmp_path: Path) -
         calls.append((slug, text, src))
 
     cursors: dict[str, int] = {}
+    buffers: dict[str, str] = {}
     await _tick(
         cursors,
+        buffers,
         projects_dir=projects,
         ingest_fn=fake_ingest,
         resolve_fn=_registered,
         min_delta_chars=4_000,
     )
-    assert calls == []
-    assert str(f) not in cursors  # cursor left so content can accumulate
+    assert calls == []  # below threshold: not ingested yet
+    assert cursors[str(f)] == f.stat().st_size  # cursor advanced (no wedge)
+    assert "tiny" in buffers[str(f)]  # signal retained in the buffer
+
+
+@pytest.mark.asyncio
+async def test_tick_buffer_accumulates_across_ticks_then_ingests(tmp_path: Path) -> None:
+    projects = tmp_path / "projects"
+    proj = projects / "-Users-dmitrydankov-BSW"
+    proj.mkdir(parents=True)
+    f = proj / "s1.jsonl"
+    calls: list[tuple[str, str, str]] = []
+
+    async def fake_ingest(slug: str, text: str, src: str) -> None:
+        calls.append((slug, text, src))
+
+    cursors: dict[str, int] = {}
+    buffers: dict[str, str] = {}
+
+    # Two small appends, each below the threshold on its own.
+    f.write_text(_transcript("/Users/dmitrydankov/BSW", [("user", "a" * 2500)]))
+    await _tick(cursors, buffers, projects_dir=projects, ingest_fn=fake_ingest,
+                resolve_fn=_registered, min_delta_chars=4_000)
+    assert calls == []  # still under threshold
+
+    with f.open("a") as fh:
+        fh.write(json.dumps({"message": {"role": "assistant", "content": "b" * 2500}}) + "\n")
+    await _tick(cursors, buffers, projects_dir=projects, ingest_fn=fake_ingest,
+                resolve_fn=_registered, min_delta_chars=4_000)
+    assert len(calls) == 1  # accumulated buffer crossed the threshold
+    assert "a" * 100 in calls[0][1] and "b" * 100 in calls[0][1]
+    assert buffers[str(f)] == ""  # cleared after ingest
